@@ -1,0 +1,39 @@
+# Environment & secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Generated outputs (local testing)
+*.pdf
+!resume_scorer/templates/**/*.pdf
+
+# Model cache (downloaded at runtime)
+.cache/
+models/
+
+# Docker
+*.log
