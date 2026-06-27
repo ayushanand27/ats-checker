@@ -31,6 +31,12 @@ Open [http://localhost:8501](http://localhost:8501).
 
 > **Note:** First run downloads the `all-MiniLM-L6-v2` embedding model (~90 MB). Core scoring works offline after that; AI suggestions need `GROQ_API_KEY`.
 
+### Windows notes
+
+- **Use a virtual environment** — installing into global Python can leave mismatched `torch` / `torchvision` versions and break Layer 2 (skill match). `requirements.txt` pins `torch==2.6.0` and `torchvision==0.21.0` together.
+- **PDF export** — WeasyPrint needs GTK/Pango libraries that pip does not provide on Windows. The app hides the PDF checkbox locally; use **DOCX** or **TeX**, or run via **Docker** for PDF.
+- After changing dependencies, restart Streamlit: stop the terminal (`Ctrl+C`) and run `streamlit run app.py` again.
+
 ## Docker (local or EC2)
 
 WeasyPrint's Pango/Cairo dependencies are baked into the Dockerfile — no manual `apt-get` on the host beyond Docker itself.
@@ -111,7 +117,7 @@ resume_scorer/
 
 ## v1 limitations
 
-- Custom template upload: stubbed ("coming soon")
+- Custom template upload: DOCX only (via docxtpl); starter template included
 - No OCR for scanned PDFs
 - TeX output is source only (compile locally or on Overleaf)
 - No user accounts or persistence

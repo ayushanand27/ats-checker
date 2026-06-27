@@ -199,4 +199,4 @@ ATS Compatibility Score is fully deterministic, based on parsing and keyword-mat
 
 ## License
 
-Open source — MIT (or add your preferred license).
+MIT License — see [LICENSE](LICENSE).

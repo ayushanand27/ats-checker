@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, Optional
 
 import streamlit as st
@@ -14,7 +15,8 @@ from scoring.deterministic import score_deterministic
 from scoring.semantic_match import score_semantic_match
 from insights.llm_rewriter import get_rewrite_suggestions
 from renderers.docx_renderer import render_docx
-from renderers.pdf_renderer import render_pdf
+from renderers.custom_docx_renderer import render_custom_docx
+from renderers.pdf_renderer import pdf_export_available, render_pdf
 from renderers.tex_renderer import render_tex
 
 load_dotenv()
@@ -28,6 +30,10 @@ TEMPLATE_OPTIONS = {
     "Jack's Tech Resume": "jacks_tech",
     "Classic Non-Tech Resume": "classic_nontech",
 }
+CUSTOM_TEMPLATE_LABEL = "Upload Custom Template"
+STARTER_TEMPLATE_PATH = (
+    Path(__file__).parent / "templates" / "custom_starter" / "starter_template.docx"
+)
 
 st.set_page_config(
     page_title="ResumeMatch",
@@ -38,8 +44,18 @@ st.set_page_config(
 
 @st.cache_resource(show_spinner="Loading semantic model (first run may download ~90MB)…")
 def load_embedding_model():
-    from sentence_transformers import SentenceTransformer
-    return SentenceTransformer("all-MiniLM-L6-v2")
+    try:
+        from sentence_transformers import SentenceTransformer
+        return SentenceTransformer("all-MiniLM-L6-v2")
+    except Exception as exc:
+        raise RuntimeError(
+            "Could not load the local embedding model (sentence-transformers). "
+            "This is usually a torch/torchvision version mismatch. "
+            "In the project folder run: pip install -r requirements.txt "
+            "(pins torch==2.6.0 and torchvision==0.21.0). "
+            "Using a virtual environment is strongly recommended on Windows. "
+            f"Original error: {exc}"
+        ) from exc
 
 
 def _score_color(score: float) -> str:
@@ -88,6 +104,8 @@ def _init_session_state() -> None:
         "jd_provided": False,
         "rewrite_result": None,
         "template_key": "jacks_tech",
+        "is_custom_template": False,
+        "custom_template_bytes": None,
         "resume_text": "",
     }
     for key, val in defaults.items():
@@ -230,12 +248,32 @@ def _render_generate_section() -> None:
         "All formats are rendered deterministically from the same JSON — no extra API calls."
     )
 
-    fmt_pdf = st.checkbox("PDF", value=True, key="fmt_pdf")
-    fmt_docx = st.checkbox("DOCX", value=True, key="fmt_docx")
-    fmt_tex = st.checkbox("TeX (LaTeX source)", value=False, key="fmt_tex")
+    is_custom = st.session_state.get("is_custom_template", False)
+
+    if is_custom:
+        st.info(
+            "PDF/TeX export available only for Jack's Tech and Classic Non-Tech templates. "
+            "Custom templates support DOCX output only."
+        )
+        fmt_docx = True
+        fmt_pdf = False
+        fmt_tex = False
+    else:
+        pdf_ok, pdf_err = pdf_export_available()
+        if pdf_ok:
+            fmt_pdf = st.checkbox("PDF", value=True, key="fmt_pdf")
+        else:
+            fmt_pdf = False
+            st.warning(pdf_err or "PDF export is unavailable on this system.")
+        fmt_docx = st.checkbox("DOCX", value=True, key="fmt_docx")
+        fmt_tex = st.checkbox("TeX (LaTeX source)", value=False, key="fmt_tex")
 
     if not (fmt_pdf or fmt_docx or fmt_tex):
         st.info("Select at least one output format.")
+        return
+
+    if is_custom and not st.session_state.get("custom_template_bytes"):
+        st.warning("Upload a custom .docx template above before generating.")
         return
 
     if st.button("Generate Resume", type="secondary", key="btn_generate"):
@@ -255,8 +293,23 @@ def _render_generate_section() -> None:
 
         if fmt_docx:
             try:
-                docx_bytes = render_docx(payload, template)
-                st.session_state["dl_docx"] = docx_bytes
+                if is_custom:
+                    docx_bytes, tpl_error = render_custom_docx(
+                        st.session_state.custom_template_bytes,
+                        payload,
+                    )
+                    if tpl_error:
+                        st.session_state.pop("dl_docx", None)
+                        st.error(tpl_error)
+                        st.caption(
+                            "Check that your template uses the exact field names shown in the "
+                            "starter template."
+                        )
+                    else:
+                        st.session_state["dl_docx"] = docx_bytes
+                else:
+                    docx_bytes = render_docx(payload, template)
+                    st.session_state["dl_docx"] = docx_bytes
             except Exception as exc:
                 st.session_state.pop("dl_docx", None)
                 st.error(f"DOCX generation failed: {exc}")
@@ -325,23 +378,49 @@ def main() -> None:
 
     template_choice = st.radio(
         "Resume template",
-        list(TEMPLATE_OPTIONS.keys()) + ["Upload Custom Template (coming soon)"],
+        list(TEMPLATE_OPTIONS.keys()) + [CUSTOM_TEMPLATE_LABEL],
         horizontal=True,
     )
-    if template_choice == "Upload Custom Template (coming soon)":
-        st.caption("Custom template upload is planned for a future release.")
-        template_choice = "Jack's Tech Resume"
 
-    st.session_state.template_key = TEMPLATE_OPTIONS.get(
-        template_choice, "jacks_tech"
-    )
+    is_custom = template_choice == CUSTOM_TEMPLATE_LABEL
+    st.session_state.is_custom_template = is_custom
+
+    if is_custom:
+        st.session_state.template_key = "custom"
+        tpl_col, dl_col = st.columns([3, 1])
+        with tpl_col:
+            custom_tpl_file = st.file_uploader(
+                "Upload custom .docx template (Jinja2 placeholders)",
+                type=["docx"],
+                key="custom_template_upload",
+            )
+            if custom_tpl_file is not None:
+                st.session_state.custom_template_bytes = custom_tpl_file.read()
+        with dl_col:
+            if STARTER_TEMPLATE_PATH.is_file():
+                st.download_button(
+                    "Download starter template",
+                    data=STARTER_TEMPLATE_PATH.read_bytes(),
+                    file_name="resume_starter_template.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="download_starter_template",
+                    help="Sample .docx showing exact {{ field }} syntax",
+                )
+            else:
+                st.caption("Starter template file missing from deployment.")
+    else:
+        st.session_state.template_key = TEMPLATE_OPTIONS.get(
+            template_choice, "jacks_tech"
+        )
+        st.session_state.custom_template_bytes = None
 
     if st.button("Analyze", type="primary", key="btn_analyze"):
         if not resume_file:
             st.error("Please upload a resume first.")
         else:
             try:
-                resume_raw = extract_text(resume_file.read(), resume_file.name)
+                resume_bytes = resume_file.read()
+                resume_raw = extract_text(resume_bytes, resume_file.name)
                 warn = validate_extracted_text(resume_raw)
                 if warn:
                     st.warning(warn)
@@ -350,15 +429,21 @@ def main() -> None:
                 if jd_file and not jd_raw:
                     jd_raw = extract_text(jd_file.read(), jd_file.name)
 
-                resume_struct = structure_resume(resume_raw)
+                pdf_bytes = resume_bytes if resume_file.name.lower().endswith(".pdf") else None
+                resume_struct = structure_resume(resume_raw, pdf_bytes=pdf_bytes)
                 jd_struct = structure_jd_or_none(jd_raw)
                 jd_provided = jd_struct is not None
 
                 layer1 = score_deterministic(resume_struct, jd_struct)
                 layer2 = None
                 if jd_provided and jd_struct:
-                    model = load_embedding_model()
-                    layer2 = score_semantic_match(resume_struct, jd_struct, model)
+                    try:
+                        model = load_embedding_model()
+                        layer2 = score_semantic_match(resume_struct, jd_struct, model)
+                    except RuntimeError as exc:
+                        st.warning(
+                            f"Layer 2 (skill match) skipped — Layer 1 score still valid. {exc}"
+                        )
 
                 core = _compose_score(
                     layer1["score"],

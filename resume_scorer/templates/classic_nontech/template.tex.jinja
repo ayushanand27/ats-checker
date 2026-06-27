@@ -44,7 +44,7 @@
 {% if education %}
 \section{Education}
 {% for edu in education %}
-\textbf{ {{ escape_latex(edu.degree) }} }}{% if edu.institution %}, {{ escape_latex(edu.institution) }}{% endif %}{% if edu.dates %} \hfill {{ escape_latex(edu.dates) }}{% endif %} \\[2pt]
+\textbf{ {{ escape_latex(edu.degree) }} }{% if edu.institution %}, {{ escape_latex(edu.institution) }}{% endif %}{% if edu.dates %} \hfill {{ escape_latex(edu.dates) }}{% endif %} \\[2pt]
 {% endfor %}
 {% endif %}
 

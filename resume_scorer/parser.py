@@ -78,3 +78,47 @@ def validate_extracted_text(text: str) -> Optional[str]:
             "The file may be a scanned/image PDF without OCR."
         )
     return None
+
+
+def guess_name_from_pdf(data: bytes) -> Optional[str]:
+    """
+    Guess candidate name from largest font-size text near the top of page 1.
+    Uses PyMuPDF span-level font data; returns None if unavailable or inconclusive.
+    """
+    doc = fitz.open(stream=data, filetype="pdf")
+    candidates: list[dict[str, float | str]] = []
+    try:
+        page = doc[0]
+        page_height = page.rect.height
+        for block in page.get_text("dict").get("blocks", []):
+            if block.get("type") != 0:
+                continue
+            for line in block.get("lines", []):
+                y = line["bbox"][1]
+                if y > page_height * 0.35:
+                    continue
+                for span in line.get("spans", []):
+                    text = span.get("text", "").strip()
+                    if not text:
+                        continue
+                    candidates.append({
+                        "text": text,
+                        "size": float(span.get("size", 0)),
+                        "x0": float(span["bbox"][0]),
+                        "y": float(y),
+                    })
+    finally:
+        doc.close()
+
+    if not candidates:
+        return None
+
+    max_size = max(c["size"] for c in candidates)
+    top_size = [c for c in candidates if c["size"] >= max_size - 0.5]
+    by_line: dict[float, list[dict[str, float | str]]] = {}
+    for c in top_size:
+        by_line.setdefault(round(c["y"], 1), []).append(c)
+
+    best_y = max(by_line, key=lambda y: max(c["size"] for c in by_line[y]))
+    line_spans = sorted(by_line[best_y], key=lambda c: c["x0"])
+    return " ".join(str(c["text"]) for c in line_spans).strip() or None
