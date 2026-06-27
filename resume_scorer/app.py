@@ -18,6 +18,22 @@ from renderers.docx_renderer import render_docx
 from renderers.custom_docx_renderer import render_custom_docx
 from renderers.pdf_renderer import pdf_export_available, render_pdf
 from renderers.tex_renderer import render_tex
+from ui.components import (
+    render_ai_ready_banner,
+    render_before_after,
+    render_change_log,
+    render_check_grid,
+    render_empty_state,
+    render_feature_sidebar,
+    render_footer,
+    render_hero,
+    render_layer_header,
+    render_score_gauge,
+    render_skill_pills,
+    render_step_header,
+    render_trust_badges,
+)
+from ui.theme import inject_global_styles
 
 load_dotenv()
 
@@ -36,9 +52,10 @@ STARTER_TEMPLATE_PATH = (
 )
 
 st.set_page_config(
-    page_title="ResumeMatch",
+    page_title="ResumeMatch — ATS Scorer & Resume Generator",
     page_icon="📄",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 
@@ -56,14 +73,6 @@ def load_embedding_model():
             "Using a virtual environment is strongly recommended on Windows. "
             f"Original error: {exc}"
         ) from exc
-
-
-def _score_color(score: float) -> str:
-    if score >= 75:
-        return "#27ae60"
-    if score >= 50:
-        return "#f39c12"
-    return "#e74c3c"
 
 
 def _compose_score(layer1: float, layer2: Optional[float], jd_provided: bool) -> float:
@@ -116,70 +125,99 @@ def _init_session_state() -> None:
 def _render_score_section() -> None:
     score = st.session_state.core_score or 0
     jd_provided = st.session_state.jd_provided
-    color = _score_color(score)
 
     label = "ATS Match Score" if jd_provided else "General ATS Score"
-    st.markdown(
-        f"<div style='text-align:center;padding:20px;'>"
-        f"<span style='font-size:14px;color:#666;'>{label}</span><br>"
-        f"<span style='font-size:72px;font-weight:bold;color:{color};'>{score}</span>"
-        f"<span style='font-size:24px;color:#999;'>/100</span>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-
+    hint = ""
     if not jd_provided:
-        st.info(
-            "General ATS check — add a job description for a tailored match score "
+        hint = (
+            f"General ATS check — add a job description for tailored skill matching "
             f"(Layer 1 only, {int(LAYER1_WEIGHT_NO_JD * 100)}% weight)."
         )
+
+    col_gauge, col_meta = st.columns([1, 1])
+    with col_gauge:
+        render_score_gauge(score, label, hint)
 
     l1 = st.session_state.layer1_result
     l2 = st.session_state.layer2_result
 
-    with st.expander("Score breakdown", expanded=True):
+    with col_meta:
         if l1:
-            st.subheader(f"Layer 1 — Structure & Hygiene: {l1['score']}/100")
-            for check in l1["checks"]:
-                icon = "✅" if check["passed"] else "❌"
-                st.markdown(f"{icon} **{check['name']}** — {check['reason']}")
+            passed = sum(1 for c in l1["checks"] if c["passed"])
+            total = len(l1["checks"])
+            st.metric("Structure checks passed", f"{passed}/{total}")
+        if jd_provided and l2:
+            matched = len(l2.get("matched_required", []))
+            missing = len(l2.get("missing_required", []))
+            st.metric("Required skills matched", f"{matched} matched · {missing} gaps")
+
+    with st.expander("Detailed score breakdown", expanded=False):
+        if l1:
+            render_layer_header(
+                "Layer 1 — Structure & Hygiene",
+                l1["score"],
+                "Deterministic",
+            )
+            render_check_grid(l1["checks"])
 
         if jd_provided and l2:
-            st.subheader(f"Layer 2 — Skill Match: {l2['score']}/100")
+            render_layer_header(
+                "Layer 2 — Skill Match",
+                l2["score"],
+                "Semantic",
+            )
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("**Matched required skills**")
-                if l2["matched_required"]:
-                    st.write(", ".join(l2["matched_required"]))
-                else:
-                    st.write("_None_")
+                st.markdown(
+                    "<p style='font-weight:600;font-size:0.85rem;margin:0.5rem 0;'>"
+                    "Matched required skills</p>",
+                    unsafe_allow_html=True,
+                )
+                render_skill_pills(l2.get("matched_required", []), "matched")
             with col2:
-                st.markdown("**Missing required skills**")
-                if l2["missing_required"]:
-                    st.error(", ".join(l2["missing_required"]))
-                else:
-                    st.success("All required skills matched!")
+                st.markdown(
+                    "<p style='font-weight:600;font-size:0.85rem;margin:0.5rem 0;'>"
+                    "Missing required skills</p>",
+                    unsafe_allow_html=True,
+                )
+                render_skill_pills(l2.get("missing_required", []), "missing")
             if l2.get("matched_preferred"):
-                st.markdown(f"**Matched preferred:** {', '.join(l2['matched_preferred'])}")
+                st.markdown(
+                    "<p style='font-weight:600;font-size:0.85rem;margin:0.75rem 0 0.35rem 0;'>"
+                    "Matched preferred</p>",
+                    unsafe_allow_html=True,
+                )
+                render_skill_pills(l2["matched_preferred"], "preferred")
             if l2.get("missing_preferred"):
-                st.markdown(f"**Missing preferred:** {', '.join(l2['missing_preferred'])}")
+                st.markdown(
+                    "<p style='font-weight:600;font-size:0.85rem;margin:0.75rem 0 0.35rem 0;'>"
+                    "Missing preferred</p>",
+                    unsafe_allow_html=True,
+                )
+                render_skill_pills(l2["missing_preferred"], "missing")
             if l2.get("experience_note"):
                 st.warning(l2["experience_note"])
 
 
 def _render_ai_section() -> None:
-    st.subheader("AI Rewrite Suggestions")
     groq_key = os.getenv("GROQ_API_KEY")
 
     if not groq_key:
         st.warning(
-            "GROQ_API_KEY is not configured. Core ATS scoring works without it. "
-            "Add your key to `.env` to enable AI suggestions."
+            "**AI suggestions unavailable** — add `GROQ_API_KEY` to your `.env` file. "
+            "Core ATS scoring works without it."
         )
         return
 
-    if st.button("Get AI Suggestions", type="primary", key="btn_ai"):
-        with st.spinner("Generating rewrite suggestions (one API call)…"):
+    st.markdown(
+        "<p style='color:#64748b;font-size:0.88rem;margin-bottom:1rem;'>"
+        "Optional one-shot rewrite powered by Groq. You review every change before export — "
+        "the AI is instructed never to fabricate experience or metrics.</p>",
+        unsafe_allow_html=True,
+    )
+
+    if st.button("Get AI Suggestions", type="primary", key="btn_ai", use_container_width=False):
+        with st.spinner("Generating rewrite suggestions…"):
             try:
                 gaps: dict[str, Any] = {}
                 l2 = st.session_state.layer2_result
@@ -204,56 +242,25 @@ def _render_ai_section() -> None:
     if not rewritten:
         return
 
-    st.success("Suggestions ready — review before generating downloads.")
-
-    if rewritten.get("change_log"):
-        st.markdown("**What changed**")
-        for item in rewritten["change_log"]:
-            st.markdown(f"- {item}")
-
-    original = st.session_state.resume_struct
-    col_before, col_after = st.columns(2)
-
-    with col_before:
-        st.markdown("#### Before")
-        st.markdown("**Summary**")
-        st.write(original.get("summary") or "_No summary detected_")
-        st.markdown("**Skills**")
-        st.write(", ".join(original.get("skills", [])) or "_None detected_")
-        if original.get("experience"):
-            st.markdown("**Experience (first role)**")
-            exp0 = original["experience"][0]
-            st.write(f"{exp0.get('title', '')} @ {exp0.get('company', '')}")
-            for b in exp0.get("bullets", [])[:3]:
-                st.markdown(f"- {b}")
-
-    with col_after:
-        st.markdown("#### After (AI suggested)")
-        st.markdown("**Summary**")
-        st.write(rewritten.get("summary", ""))
-        st.markdown("**Skills**")
-        st.write(", ".join(rewritten.get("skills", [])))
-        if rewritten.get("experience"):
-            st.markdown("**Experience (first role)**")
-            exp0 = rewritten["experience"][0]
-            st.write(f"{exp0.get('title', '')} @ {exp0.get('company', '')}")
-            for b in exp0.get("bullets", [])[:3]:
-                st.markdown(f"- {b}")
+    render_ai_ready_banner()
+    render_change_log(rewritten.get("change_log", []))
+    render_before_after(st.session_state.resume_struct, rewritten)
 
 
 def _render_generate_section() -> None:
-    st.subheader("Generate Resume")
-    st.caption(
-        "Uses AI suggestions if available; otherwise exports your parsed resume content. "
-        "All formats are rendered deterministically from the same JSON — no extra API calls."
+    st.markdown(
+        "<p style='color:#64748b;font-size:0.88rem;margin-bottom:0.75rem;'>"
+        "Uses AI suggestions if available; otherwise exports your parsed resume. "
+        "All formats rendered deterministically from the same JSON — no extra API calls.</p>",
+        unsafe_allow_html=True,
     )
 
     is_custom = st.session_state.get("is_custom_template", False)
 
     if is_custom:
         st.info(
-            "PDF/TeX export available only for Jack's Tech and Classic Non-Tech templates. "
-            "Custom templates support DOCX output only."
+            "Custom templates support **DOCX only**. "
+            "PDF/TeX are available for built-in templates."
         )
         fmt_docx = True
         fmt_pdf = False
@@ -276,7 +283,7 @@ def _render_generate_section() -> None:
         st.warning("Upload a custom .docx template above before generating.")
         return
 
-    if st.button("Generate Resume", type="secondary", key="btn_generate"):
+    if st.button("Generate Resume", type="primary", key="btn_generate"):
         payload = _merge_for_render(
             st.session_state.resume_struct,
             st.session_state.rewrite_result,
@@ -301,10 +308,6 @@ def _render_generate_section() -> None:
                     if tpl_error:
                         st.session_state.pop("dl_docx", None)
                         st.error(tpl_error)
-                        st.caption(
-                            "Check that your template uses the exact field names shown in the "
-                            "starter template."
-                        )
                     else:
                         st.session_state["dl_docx"] = docx_bytes
                 else:
@@ -322,64 +325,95 @@ def _render_generate_section() -> None:
                 st.session_state.pop("dl_tex", None)
                 st.error(f"TeX generation failed: {exc}")
 
+    has_downloads = any(
+        st.session_state.get(k) for k in ("dl_pdf", "dl_docx", "dl_tex")
+    )
+    if has_downloads:
+        st.markdown(
+            "<p style='font-weight:600;font-size:0.9rem;margin:1.25rem 0 0.5rem 0;'>"
+            "Your files are ready</p>",
+            unsafe_allow_html=True,
+        )
+
     dl_cols = st.columns(3)
     if st.session_state.get("dl_pdf"):
         dl_cols[0].download_button(
-            "Download PDF",
+            "⬇ Download PDF",
             st.session_state["dl_pdf"],
             file_name="resume.pdf",
             mime="application/pdf",
             key="download_pdf",
+            use_container_width=True,
         )
     if st.session_state.get("dl_docx"):
         dl_cols[1].download_button(
-            "Download DOCX",
+            "⬇ Download DOCX",
             st.session_state["dl_docx"],
             file_name="resume.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             key="download_docx",
+            use_container_width=True,
         )
     if st.session_state.get("dl_tex"):
         dl_cols[2].download_button(
-            "Download TeX",
+            "⬇ Download TeX",
             st.session_state["dl_tex"],
             file_name="resume.tex",
             mime="application/x-tex",
             key="download_tex",
+            use_container_width=True,
         )
 
 
 def main() -> None:
     _init_session_state()
+    inject_global_styles()
+    render_feature_sidebar()
+    render_hero()
 
-    st.title("ResumeMatch")
-    st.caption("ATS scorer · AI rewriter · Multi-format resume generator")
-
-    # --- Input section ---
-    st.header("1. Upload & Configure")
-    resume_file = st.file_uploader(
-        "Upload resume (.pdf, .docx, .txt)",
-        type=["pdf", "docx", "txt"],
-        key="resume_upload",
+    # --- Step 1: Upload ---
+    render_step_header(
+        1,
+        "Upload & Configure",
+        "Resume required · Job description optional for tailored matching",
     )
 
-    st.markdown("**Job description** _(optional — enables tailored skill matching)_")
-    jd_tab_paste, jd_tab_upload = st.tabs(["Paste text", "Upload file"])
-    jd_text = ""
-    jd_file = None
-    with jd_tab_paste:
-        jd_text = st.text_area("Paste job description", height=150, key="jd_paste")
-    with jd_tab_upload:
-        jd_file = st.file_uploader(
-            "Upload JD (.pdf, .docx, .txt)",
+    col_resume, col_jd = st.columns(2)
+    with col_resume:
+        st.markdown("**Resume**")
+        resume_file = st.file_uploader(
+            "PDF, DOCX, or TXT",
             type=["pdf", "docx", "txt"],
-            key="jd_upload",
+            key="resume_upload",
+            label_visibility="collapsed",
         )
+    with col_jd:
+        st.markdown("**Job description** _(optional)_")
+        jd_tab_paste, jd_tab_upload = st.tabs(["Paste", "Upload"])
+        jd_text = ""
+        jd_file = None
+        with jd_tab_paste:
+            jd_text = st.text_area(
+                "Paste JD",
+                height=140,
+                key="jd_paste",
+                label_visibility="collapsed",
+                placeholder="Paste the full job description here for skill-gap analysis…",
+            )
+        with jd_tab_upload:
+            jd_file = st.file_uploader(
+                "Upload JD",
+                type=["pdf", "docx", "txt"],
+                key="jd_upload",
+                label_visibility="collapsed",
+            )
 
+    st.markdown("**Output template**")
     template_choice = st.radio(
-        "Resume template",
+        "Template",
         list(TEMPLATE_OPTIONS.keys()) + [CUSTOM_TEMPLATE_LABEL],
         horizontal=True,
+        label_visibility="collapsed",
     )
 
     is_custom = template_choice == CUSTOM_TEMPLATE_LABEL
@@ -390,7 +424,7 @@ def main() -> None:
         tpl_col, dl_col = st.columns([3, 1])
         with tpl_col:
             custom_tpl_file = st.file_uploader(
-                "Upload custom .docx template (Jinja2 placeholders)",
+                "Custom .docx template (Jinja2 placeholders)",
                 type=["docx"],
                 key="custom_template_upload",
             )
@@ -399,22 +433,31 @@ def main() -> None:
         with dl_col:
             if STARTER_TEMPLATE_PATH.is_file():
                 st.download_button(
-                    "Download starter template",
+                    "Starter template",
                     data=STARTER_TEMPLATE_PATH.read_bytes(),
                     file_name="resume_starter_template.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     key="download_starter_template",
-                    help="Sample .docx showing exact {{ field }} syntax",
+                    use_container_width=True,
                 )
-            else:
-                st.caption("Starter template file missing from deployment.")
     else:
         st.session_state.template_key = TEMPLATE_OPTIONS.get(
             template_choice, "jacks_tech"
         )
         st.session_state.custom_template_bytes = None
 
-    if st.button("Analyze", type="primary", key="btn_analyze"):
+    render_trust_badges()
+
+    analyze_col, _ = st.columns([1, 3])
+    with analyze_col:
+        analyze_clicked = st.button(
+            "Analyze Resume",
+            type="primary",
+            key="btn_analyze",
+            use_container_width=True,
+        )
+
+    if analyze_clicked:
         if not resume_file:
             st.error("Please upload a resume first.")
         else:
@@ -467,35 +510,26 @@ def main() -> None:
                 st.error(f"Analysis failed: {exc}")
 
     if not st.session_state.analyzed:
-        st.info("Upload a resume and click **Analyze** to see your ATS score.")
-        st.markdown("---")
-        st.caption(
-            "ATS Compatibility Score is fully deterministic, based on the same parsing/"
-            "keyword-matching approach real ATS systems use. AI rewrite suggestions are "
-            "optional, reviewed by you before use, and the AI is instructed never to "
-            "fabricate experience or metrics. This tool is independent and not affiliated "
-            "with any company's actual ATS system."
-        )
+        render_empty_state()
+        render_footer()
         return
 
-    # --- Results ---
-    st.header("2. ATS Score")
+    st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:2rem 0;'>", unsafe_allow_html=True)
+
+    render_step_header(2, "ATS Score", "Two-layer analysis — structure + skill alignment")
     _render_score_section()
 
-    st.header("3. AI Suggestions (Optional)")
+    st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:2rem 0;'>", unsafe_allow_html=True)
+
+    render_step_header(3, "AI Suggestions", "Optional — review every change before export")
     _render_ai_section()
 
-    st.header("4. Download")
+    st.markdown("<hr style='border:none;border-top:1px solid #e2e8f0;margin:2rem 0;'>", unsafe_allow_html=True)
+
+    render_step_header(4, "Download", "Generate polished resume files")
     _render_generate_section()
 
-    st.markdown("---")
-    st.caption(
-        "ATS Compatibility Score is fully deterministic, based on the same parsing/"
-        "keyword-matching approach real ATS systems use. AI rewrite suggestions are "
-        "optional, reviewed by you before use, and the AI is instructed never to "
-        "fabricate experience or metrics. This tool is independent and not affiliated "
-        "with any company's actual ATS system."
-    )
+    render_footer()
 
 
 if __name__ == "__main__":

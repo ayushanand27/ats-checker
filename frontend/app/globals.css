@@ -1,0 +1,62 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --background: #0b0c0f;
+    --foreground: #e6e8ed;
+    --card: #13151a;
+    --card-foreground: #e6e8ed;
+    --popover: #13151a;
+    --popover-foreground: #e6e8ed;
+    --primary: #8b7355;
+    --primary-foreground: #0b0c0f;
+    --secondary: #181b22;
+    --secondary-foreground: #e6e8ed;
+    --muted: #181b22;
+    --muted-foreground: #7b8394;
+    --accent: #8b7355;
+    --accent-foreground: #0b0c0f;
+    --destructive: #f87171;
+    --destructive-foreground: #e6e8ed;
+    --border: #252830;
+    --input: #252830;
+    --ring: #8b7355;
+    --radius: 0.375rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas font-sans text-[15px] leading-relaxed antialiased;
+    color: #e6e8ed;
+  }
+
+  /* Native form controls on dark canvas */
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: #8b7355;
+  }
+}
