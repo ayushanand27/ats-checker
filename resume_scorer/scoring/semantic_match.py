@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
 SEMANTIC_MATCH_THRESHOLD = 0.6
 REQUIRED_SKILL_WEIGHT = 2.0
 PREFERRED_SKILL_WEIGHT = 1.0
+LAYER2_SKIP_NO_SKILLS = (
+    "Layer 2 not applicable: JD has no extractable skills to match against."
+)
+
+
+def jd_has_matchable_skills(jd: dict[str, Any]) -> bool:
+    """True when the JD yields at least one skill to score against."""
+    return bool(
+        jd.get("required_skills")
+        or jd.get("preferred_skills")
+        or jd.get("all_skills")
+    )
 
 
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
@@ -46,8 +58,14 @@ def score_semantic_match(
     resume: dict[str, Any],
     jd: dict[str, Any],
     model: Any,
-) -> dict[str, Any]:
-    """Score JD skill alignment out of 100 using semantic similarity."""
+) -> Optional[dict[str, Any]]:
+    """Score JD skill alignment out of 100 using semantic similarity.
+
+    Returns None when the JD has no extractable skills to match (Layer 2 N/A).
+    """
+    if not jd_has_matchable_skills(jd):
+        return None
+
     resume_skills = resume.get("skills", [])
     required = jd.get("required_skills", [])
     preferred = jd.get("preferred_skills", [])
@@ -61,6 +79,8 @@ def score_semantic_match(
 
     if total_weight == 0:
         all_jd_skills = jd.get("all_skills", [])
+        if not all_jd_skills:
+            return None
         req_matched, req_missing = _match_skills(resume_skills, all_jd_skills, model)
         total_weight = len(all_jd_skills) * REQUIRED_SKILL_WEIGHT
         earned = len(req_matched) * REQUIRED_SKILL_WEIGHT
@@ -70,7 +90,10 @@ def score_semantic_match(
             + len(pref_matched) * PREFERRED_SKILL_WEIGHT
         )
 
-    score = round((earned / total_weight) * 100, 1) if total_weight else 0.0
+    if total_weight == 0:
+        return None
+
+    score = round((earned / total_weight) * 100, 1)
 
     exp_years = resume.get("experience_years", 0)
     min_exp = jd.get("min_experience_years")

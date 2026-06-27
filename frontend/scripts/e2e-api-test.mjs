@@ -47,9 +47,14 @@ async function main() {
   const analyze = await analyzeRes.json();
   assert(analyze.core_score > 0, "core_score missing");
   assert(analyze.layer1?.checks?.length > 0, "layer1 checks missing");
-  assert(analyze.layer2 !== null, "layer2 should be present with JD");
-  console.log("   core_score:", analyze.core_score);
-  console.log("   layer1:", analyze.layer1.score, "layer2:", analyze.layer2.score);
+  if (analyze.jd_struct?.all_skills?.length) {
+    assert(analyze.layer2 !== null, "layer2 should be present when JD has skills");
+    console.log("   core_score:", analyze.core_score);
+    console.log("   layer1:", analyze.layer1.score, "layer2:", analyze.layer2.score);
+  } else {
+    console.log("   core_score:", analyze.core_score);
+    console.log("   layer1:", analyze.layer1.score, "layer2: skipped (no JD skills)");
+  }
 
   console.log("3. Rewrite...");
   const rewriteRes = await fetch(`${API}/api/rewrite`, {

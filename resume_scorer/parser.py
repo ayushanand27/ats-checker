@@ -19,11 +19,49 @@ def _decode_text(raw: bytes) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _page_text_column_ordered(page: fitz.Page) -> str:
+    """
+    Reassemble page text with left-column blocks before right-column blocks.
+    Helps multi-column resumes (e.g. Jake's template) keep sidebar headers like
+    Skills near their content instead of interleaved with main-column text.
+    """
+    blocks = page.get_text("blocks")
+    if not blocks:
+        return page.get_text()
+
+    typed: list[tuple[float, float, str]] = []
+    for block in blocks:
+        if len(block) < 5:
+            continue
+        text = str(block[4]).strip()
+        if not text:
+            continue
+        typed.append((float(block[0]), float(block[1]), text))
+
+    if not typed:
+        return page.get_text()
+
+    page_width = page.rect.width
+    # Jake's-style sidebar is ~30–38% from the left; use adaptive split when possible
+    x0_values = sorted(b[0] for b in typed)
+    split_x = page_width * 0.38
+    if len(x0_values) >= 4:
+        mid = len(x0_values) // 2
+        gap = x0_values[mid] - x0_values[mid - 1]
+        if gap > page_width * 0.08:
+            split_x = (x0_values[mid - 1] + x0_values[mid]) / 2.0
+
+    left = sorted((y, t) for x, y, t in typed if x < split_x)
+    right = sorted((y, t) for x, y, t in typed if x >= split_x)
+    ordered = [t for _, t in left] + [t for _, t in right]
+    return "\n".join(ordered)
+
+
 def extract_text_from_pdf(data: bytes) -> str:
     doc = fitz.open(stream=data, filetype="pdf")
     parts: list[str] = []
     for page in doc:
-        parts.append(page.get_text())
+        parts.append(_page_text_column_ordered(page))
     doc.close()
     return "\n".join(parts).strip()
 

@@ -15,7 +15,7 @@ from api.deps import (
 from api.schemas import AnalyzeResponse, Layer1Result, Layer2Result, ScoreGaps, TemplateChoice
 from parser import extract_text, validate_extracted_text
 from scoring.deterministic import score_deterministic
-from scoring.semantic_match import score_semantic_match
+from scoring.semantic_match import LAYER2_SKIP_NO_SKILLS, score_semantic_match
 from structurer import structure_jd_or_none, structure_resume
 
 router = APIRouter()
@@ -71,11 +71,14 @@ async def analyze(
     layer1 = score_deterministic(resume_struct, jd_struct)
     layer2 = None
     layer2_error: Optional[str] = None
+    layer2_skip: Optional[str] = None
 
     if jd_provided and jd_struct:
         try:
             model = get_embedding_model()
             layer2 = score_semantic_match(resume_struct, jd_struct, model)
+            if layer2 is None and not layer2_error:
+                layer2_skip = LAYER2_SKIP_NO_SKILLS
         except RuntimeError as exc:
             layer2_error = str(exc)
 
@@ -90,6 +93,10 @@ async def analyze(
         parse_warning = f"{parse_warning} | Layer 2 skipped: {layer2_error}"
     elif layer2_error:
         parse_warning = f"Layer 2 skipped: {layer2_error}"
+    elif layer2_skip:
+        parse_warning = (
+            f"{parse_warning} | {layer2_skip}" if parse_warning else layer2_skip
+        )
 
     return AnalyzeResponse(
         core_score=core,

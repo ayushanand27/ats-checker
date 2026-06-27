@@ -13,20 +13,20 @@ from api.schemas import HealthResponse
 
 load_dotenv()
 
-# Extend this list when deploying the Next.js frontend to production.
-CORS_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
 
-_extra_origins = os.getenv("CORS_ORIGINS", "")
-if _extra_origins:
-    CORS_ORIGINS.extend(o.strip() for o in _extra_origins.split(",") if o.strip())
+def _cors_origins() -> list[str]:
+    raw = os.getenv("CORS_ORIGINS", "").strip()
+    if raw:
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return ["http://localhost:3000"]
+
+
+CORS_ORIGINS = _cors_origins()
 
 app = FastAPI(
     title="ResumeMatch API",
     description="REST API for ATS scoring, AI rewrite, and resume generation",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 app.add_middleware(

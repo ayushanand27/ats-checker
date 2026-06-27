@@ -1,0 +1,37 @@
+We are Lenovo. We do what we say. We own what we do. We WOW our customers.
+
+Lenovo is a US$69 billion revenue global technology powerhouse, ranked #196 in the
+Fortune Global 500, and serving millions of customers every day in 180 markets.
+infrastructure (server, storage, edge, high performance computing and software
+defined infrastructure), software, solutions, and services. Lenovo is listed on the Hong Kong stock
+exchange under Lenovo Group Limited (HKSE: 992) (ADR: LNVGY).
+
+Job Title Talent Acquisition Intern
+Job Responsibilities
+Location: Gurgaon | Stipend: 30,000 per month | Duration: 11 months
+
+We are looking for a Talent Acquisition Intern with a strong inclination toward data,
+analytics, AI, and technical problem-solving.
+
+Key Responsibilities
+Analyze recruiting data using Excel/SQL to generate insights
+Build dashboards and reports using Power BI
+Support automation using Co-pilot & Power Automate
+Assist in AI and agentic hiring projects
+Conduct talent data research and market intelligence analysis
+Work on data mining and talent data structuring for hiring insights
+Support development of technical/automation solutions (coding, scripts, workflows)
+
+Skills & Experience
+Must-have
+Strong Excel & SQL skills
+Experience with Power BI / data visualization tools
+Basic understanding of automation, AI, or scripting
+Strong analytical and problem-solving skills
+Inclination toward technical work (coding / automation mindset)
+
+Good-to-have:
+Exposure to AI/ML or agent-based systems
+Experience with data research, APIs, or data pipelines
+Knowledge of Python or other programming languages
+Interest in TA analytics, talent intelligence, or HR tech

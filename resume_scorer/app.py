@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from parser import extract_text, validate_extracted_text
 from structurer import structure_jd_or_none, structure_resume
 from scoring.deterministic import score_deterministic
-from scoring.semantic_match import score_semantic_match
+from scoring.semantic_match import LAYER2_SKIP_NO_SKILLS, score_semantic_match
 from insights.llm_rewriter import get_rewrite_suggestions
 from renderers.docx_renderer import render_docx
 from renderers.custom_docx_renderer import render_custom_docx
@@ -483,6 +483,8 @@ def main() -> None:
                     try:
                         model = load_embedding_model()
                         layer2 = score_semantic_match(resume_struct, jd_struct, model)
+                        if layer2 is None:
+                            st.info(LAYER2_SKIP_NO_SKILLS)
                     except RuntimeError as exc:
                         st.warning(
                             f"Layer 2 (skill match) skipped — Layer 1 score still valid. {exc}"

@@ -1,0 +1,29 @@
+Ayush Anand
+Jaipur, Rajasthan | +91-7004455149 | ayushanandchoudhary543@gmail.com | LinkedIn | GitHub
+
+SUMMARY
+Final-year B.Tech CSE student (CGPA 9.18) with hands-on experience building AI-powered recruitment tools, analytics dashboards,
+and automation workflows. Led a 5-member team to ship a production AI interview platform for candidate evaluation, proctoring,
+and recruiter reporting. Proficient in Python, SQL, Power BI, and agentic AI systems.
+
+EDUCATION
+Manipal University Jaipur
+B.Tech CSE (IoT & Intelligent Systems) | CGPA: 9.18 | Aug 2023 - May 2027
+
+EXPERIENCE
+SmartSkale | Generative AI Intern & Team Lead | Mar 2026 - Present | Remote
+- Led 5-member team to build InterviewBot AI hiring platform with proctoring, Groq/Whisper transcription, JWT auth, automated PDF reports.
+- Owned TA data pipeline: DOCX/TXT resume parsing, structured candidate scoring output, batch report auto-emailing.
+- Built Python automation scripts for invite flow and candidate status tracking.
+
+PwC Advisory Centres India | Advisory Launchpad Trainee - Salesforce Track | Feb 2026 - Present | Remote
+- Ranked 3rd on programme leaderboard; micro-certified in GenAI, Modern Data Systems, and Java.
+
+Elevate Labs | AICTE x Shell x Edunet | Data Analyst Intern | Sep 2025 - May 2026 | Remote
+- Built churn prediction models and executive dashboards (Tableau, Power BI); SQL-based data extraction and funnel analysis.
+
+SKILLS
+Data & Analytics: Python, SQL, Excel, Power BI, Tableau, data cleaning, funnel analysis, dashboard design
+Automation & AI: API integration, agentic AI systems, LLM workflows, Python scripting, REST APIs, Power Automate
+TA & HRTech: Recruiting data analysis, candidate pipeline reporting, talent intelligence, CRM (Salesforce)
+Technical: FastAPI, React, Docker, AWS EC2, PostgreSQL, Git, Node.js

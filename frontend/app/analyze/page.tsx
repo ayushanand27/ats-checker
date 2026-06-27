@@ -162,11 +162,18 @@ export default function AnalyzePage() {
     }
   };
 
-  const scoreLabel = result?.jd_provided ? "ATS Match Score" : "General ATS Score";
+  const scoreLabel =
+    result?.layer2 != null
+      ? "ATS Match Score"
+      : result?.jd_provided
+        ? "ATS Structure Score"
+        : "General ATS Score";
   const scoreHint =
     result && !result.jd_provided
       ? "Add a job description for tailored skill matching (Layer 1 only)."
-      : undefined;
+      : result?.jd_provided && !result.layer2
+        ? "Skill match not applicable — JD has no extractable skills. Score reflects structure only."
+        : undefined;
 
   const activeStep = result ? 2 : 1;
 
@@ -352,7 +359,7 @@ export default function AnalyzePage() {
                           <span className="text-base font-normal text-text-muted">/100</span>
                         </p>
                       </div>
-                      {result.layer2 && (
+                      {result.layer2 ? (
                         <div>
                           <p className="text-xs uppercase tracking-wider text-text-muted">
                             Layer 2 — Skill match
@@ -362,7 +369,16 @@ export default function AnalyzePage() {
                             <span className="text-base font-normal text-text-muted">/100</span>
                           </p>
                         </div>
-                      )}
+                      ) : result.jd_provided ? (
+                        <div>
+                          <p className="text-xs uppercase tracking-wider text-text-muted">
+                            Layer 2 — Skill match
+                          </p>
+                          <p className="text-sm leading-relaxed text-text-muted">
+                            Not applicable — JD has no extractable skills to match
+                          </p>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </CardContent>
