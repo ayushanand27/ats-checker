@@ -1,4 +1,7 @@
 streamlit==1.41.1
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
 PyMuPDF==1.25.3
 python-docx==1.1.2
 docxtpl==0.19.1

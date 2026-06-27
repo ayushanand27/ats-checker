@@ -1,0 +1,18 @@
+Alex Johnson
+Software Engineer
+alex.johnson@email.com | +1-555-0100 | github.com/alexj
+
+SUMMARY
+Final-year CS student with hands-on Python development, TCP/IP networking, and unit testing experience.
+
+EXPERIENCE
+Software Engineer Intern | Cisco | Jun 2024 - Present
+- Built Python tools for network debugging and TCP/IP analysis
+- Wrote unit tests and participated in agile code reviews
+- Improved REST API latency by 20% through query optimization
+
+EDUCATION
+B.Tech Computer Science | IIT Delhi | 2023 - 2027
+
+SKILLS
+Python, TCP/IP, Linux, Git, unit testing, debugging, networking, REST APIs, Docker, SQL
