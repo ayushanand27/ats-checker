@@ -79,24 +79,29 @@ def test_ta_jd_no_false_skills() -> None:
         ok("TA JD required skills include Excel/SQL/Power BI/Automation")
 
 
-def test_digital_jd_layer2_skip() -> None:
+def test_digital_jd_layer2_runs() -> None:
+    """Natural-language JDs (no literal skill names) must still yield skills via
+    phrase aliases so Layer 2 runs instead of silently skipping."""
     body = analyze("resume_ayush_ta.txt", "jd_digital_analyst.txt", "Ayush + Digital Analyst JD")
     if not body:
         return
-    if body.get("layer2") is not None:
-        fail(f"Digital Analyst should skip Layer 2; got score {body['layer2']['score']}")
-    else:
-        ok("Layer 2 null for skill-less JD")
-    if body["core_score"] != body["layer1"]["score"]:
+    if body.get("layer2") is None:
         fail(
-            f"core_score should equal L1 when L2 skipped; "
-            f"core={body['core_score']} L1={body['layer1']['score']}"
+            "Digital Analyst JD should now run Layer 2 (phrase-alias extraction); "
+            f"got parse_warning={body.get('parse_warning')!r}"
         )
+        return
+    ok(f"Layer 2 runs for prose JD — score={body['layer2']['score']}")
+
+    # The prose JD implies analytics skills; confirm they were extracted.
+    jd_skills = set(
+        (body.get("keyword_analysis") or {}).get("keywords", [])
+    ) or set(body["layer2"].get("matched_required", []) + body["layer2"].get("missing_required", []))
+    expected_any = {"Web Analytics", "Data Analytics", "Marketing Analytics", "SEO", "KPI Reporting"}
+    if expected_any & jd_skills:
+        ok(f"Prose JD skills recognized: {sorted(expected_any & jd_skills)}")
     else:
-        ok("core_score equals Layer 1 (no L2 penalty)")
-    warn_msg = body.get("parse_warning") or ""
-    if "no extractable skills" not in warn_msg.lower():
-        warn(f"parse_warning missing L2 skip note: {warn_msg!r}")
+        warn(f"Expected analytics skills not surfaced; got {sorted(jd_skills)}")
 
 
 def test_ta_match() -> None:
@@ -194,7 +199,7 @@ def main() -> int:
         test_health()
         test_ta_jd_no_false_skills()
         test_no_jd()
-        test_digital_jd_layer2_skip()
+        test_digital_jd_layer2_runs()
         test_ta_match()
         test_generate()
         test_rewrite()

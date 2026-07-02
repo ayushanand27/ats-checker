@@ -31,8 +31,17 @@ DATE_MONTH = re.compile(
 DATE_YEAR = re.compile(r"\b(19|20)\d{2}\s*[-–—]\s*(?:\((19|20)\d{2}\)|present|current|now|\d{4})", re.I)
 NONSTANDARD_PRESENT = re.compile(r"\b(?:current|ongoing|till date|till now)\b", re.I)
 
-# Lines that look like section headers (short, title-case, no bullet)
+# A line only counts as a *section header* candidate when it carries a strong
+# header signal: ALL-CAPS (e.g. "WORK HISTORY") or a trailing colon
+# (e.g. "Employment:"). This avoids flagging names, institutions, and
+# PDF-wrapped bullet fragments that happen to be Title-Case.
 HEADER_LIKE = re.compile(r"^[A-Z][A-Za-z\s&]{2,40}$")
+ALL_CAPS_HEADER = re.compile(r"^[A-Z][A-Z\s&/]{2,40}$")
+CONTACT_HINT_RE = re.compile(r"[@0-9]|https?://|www\.|linkedin|github", re.I)
+INSTITUTION_HINT_RE = re.compile(
+    r"\b(?:university|college|institute|institution|school|academy|polytechnic)\b",
+    re.I,
+)
 
 
 def _fmt_check(name: str, passed: bool, reason: str, weight: float = 0) -> dict[str, Any]:
@@ -74,18 +83,51 @@ def check_formatting(
         8,
     ))
 
-    # Non-standard section headers
+    # Non-standard section headers.
+    # Cross-reference the structurer's parsed output so we never flag the
+    # candidate's name, education institutions, or wrapped bullet text as
+    # "headers". A real section header carries a strong signal: it is ALL-CAPS
+    # or ends with a colon, and sits on its own line (blank line before/after).
+    name = (resume.get("name") or "").strip().lower()
+    edu_institutions = {
+        (entry.get("institution") or entry.get("school") or "").strip().lower()
+        for entry in (resume.get("education") or [])
+        if isinstance(entry, dict)
+    }
+    edu_institutions.discard("")
+
+    lines = raw.splitlines()
+
+    def _is_blank(idx: int) -> bool:
+        return idx < 0 or idx >= len(lines) or not lines[idx].strip()
+
     custom_headers: list[str] = []
-    for line in raw.splitlines():
+    for i, line in enumerate(lines):
         stripped = line.strip()
         if not stripped or len(stripped) > 45 or BULLET_RE.match(stripped):
             continue
-        if HEADER_LIKE.match(stripped):
-            lower = stripped.lower().rstrip(":")
-            if lower not in STANDARD_HEADERS and not any(
-                lower.startswith(h) for h in STANDARD_HEADERS
-            ):
-                custom_headers.append(stripped)
+
+        strong_header = bool(ALL_CAPS_HEADER.match(stripped)) or stripped.endswith(":")
+        if not strong_header or not HEADER_LIKE.match(stripped.rstrip(":")):
+            continue
+
+        lower = stripped.lower().rstrip(":")
+
+        # Skip anything the structurer already identified as non-header content.
+        if lower == name or lower in edu_institutions:
+            continue
+        if CONTACT_HINT_RE.search(stripped) or INSTITUTION_HINT_RE.search(stripped):
+            continue
+
+        # Real headers are visually isolated; require a blank line on at least
+        # one side so mid-paragraph or wrapped lines aren't mistaken for headers.
+        if not (_is_blank(i - 1) or _is_blank(i + 1)):
+            continue
+
+        if lower not in STANDARD_HEADERS and not any(
+            lower.startswith(h) for h in STANDARD_HEADERS
+        ):
+            custom_headers.append(stripped)
     custom_headers = list(dict.fromkeys(custom_headers))[:3]
     checks.append(_fmt_check(
         "Standard section headers",

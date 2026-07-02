@@ -799,6 +799,41 @@ def _extract_min_experience(text: str) -> Optional[float]:
     return None
 
 
+# Natural-language JD phrasing → canonical taxonomy skill. Deterministic
+# (no API): lets us recognize skills that JDs describe in prose rather than
+# naming outright (e.g. "web analytics" instead of "Google Analytics").
+# Every target here MUST also exist in skills_taxonomy.json so the same skill
+# can be extracted from resumes and matched in Layer 2.
+_JD_PHRASE_ALIASES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bweb\s+analytics\b", re.I), "Web Analytics"),
+    (re.compile(r"\banalytics\s+tools?\b", re.I), "Data Analytics"),
+    (re.compile(r"\bdata\s+analy(?:sis|tics|se)\b", re.I), "Data Analysis"),
+    (re.compile(r"\bdata\s+visuali[sz]ation\b", re.I), "Data Visualization"),
+    (re.compile(r"\bbusiness\s+intelligence\b", re.I), "Business Intelligence"),
+    (re.compile(r"\bmarketing\s+analytics\b", re.I), "Marketing Analytics"),
+    (re.compile(r"\bkpis?\b|\bkey\s+performance\s+indicators?\b", re.I), "KPI Reporting"),
+    (re.compile(r"\bdashboards?\b", re.I), "Dashboards"),
+    (re.compile(r"\bmarket\s+research\b", re.I), "Market Research"),
+    (re.compile(r"\bcompetitor\s+analysis\b|\bcompetitive\s+analysis\b", re.I), "Competitor Analysis"),
+    (re.compile(r"\bcampaigns?\b", re.I), "Campaign Management"),
+    (re.compile(r"\bsearch\s+trends?\b|\bsearch\s+engine\s+optimi[sz]ation\b|\bsearch\s+rankings?\b", re.I), "SEO"),
+    (re.compile(r"\ba/b\s+test|\bsplit\s+test", re.I), "A/B Testing"),
+    (re.compile(r"\bstatistical\s+analysis\b|\bstatistics\b", re.I), "Statistical Analysis"),
+    (re.compile(r"\btrend\s+analysis\b", re.I), "Trend Analysis"),
+    (re.compile(r"\bconversion\s+rate\s+optimi[sz]ation\b|\bconversion\s+rate\b|\bcro\b", re.I), "Conversion Rate Optimization"),
+    (re.compile(r"\bmarket(?:ing)?\s+kpis?\b", re.I), "Marketing Analytics"),
+)
+
+
+def _extract_phrase_alias_skills(text: str) -> list[str]:
+    """Map natural-language JD phrases to canonical taxonomy skills."""
+    found: list[str] = []
+    for pattern, skill in _JD_PHRASE_ALIASES:
+        if pattern.search(text):
+            found.append(skill)
+    return sorted(set(found), key=str.lower)
+
+
 def structure_jd(text: str) -> dict[str, Any]:
     """Extract structured JD JSON via rules/regex only."""
     taxonomy = _load_taxonomy()
@@ -807,6 +842,9 @@ def structure_jd(text: str) -> dict[str, Any]:
         extraction_text,
         _extract_skills(extraction_text, taxonomy),
     )
+    alias_skills = _extract_phrase_alias_skills(extraction_text)
+    if alias_skills:
+        all_skills = sorted(set(all_skills + alias_skills), key=str.lower)
 
     has_required_section = bool(_JD_REQUIRED_SECTION.search(extraction_text))
     has_preferred_section = bool(_JD_PREFERRED_SECTION.search(extraction_text))
@@ -835,6 +873,10 @@ def structure_jd(text: str) -> dict[str, Any]:
         # Only backfill required from global matches when no explicit required section exists
         if not required and not has_required_section:
             required = [s for s in all_skills if s not in preferred]
+        # Phrase-alias skills are mentioned in the JD body — ensure they count.
+        extra = [s for s in alias_skills if s not in required and s not in preferred]
+        if extra:
+            required = sorted(set(required + extra), key=str.lower)
     else:
         required, preferred = _bucket_jd_skills_heuristic(extraction_text, all_skills)
         required = _sanitize_jd_skills(extraction_text, required)

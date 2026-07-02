@@ -10,6 +10,18 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 
 ---
 
+## Screenshots
+
+| ATS score card | Keyword highlight map |
+|:---:|:---:|
+| ![ATS score card](docs/score-card.png) | ![Keyword highlight map](docs/keyword-map.png) |
+| **Before / after re-score** | **Parsed ATS view** |
+| ![Before and after score](docs/before-after.png) | ![Parsed ATS view](docs/parsed-view.png) |
+
+> Screenshots live in `docs/`. Capture them from a live local run at http://localhost:3000/analyze.
+
+---
+
 ## Features
 
 - **Industry-standard ATS scoring** — structure (35%) + semantic skill match (65%); keyword placement in summary/skills/experience; density warnings for stuffing
@@ -52,6 +64,8 @@ npm run dev
 ```
 
 Open [http://localhost:3000/analyze](http://localhost:3000/analyze).
+
+> **API docs:** interactive Swagger UI is auto-generated at [http://localhost:8000/docs](http://localhost:8000/docs) (ReDoc at `/redoc`).
 
 > **First run** downloads `all-MiniLM-L6-v2` (~90 MB). Core scoring works offline after that.
 
@@ -116,6 +130,8 @@ Sign in on `/analyze`, then:
 
 Auth is self-contained: **PBKDF2** password hashing + **JWT** sessions, no external service. Set `JWT_SECRET` and a persistent `RESUMEMATCH_DB` path in production.
 
+> ⚠️ **Security:** `JWT_SECRET` uses a hard-coded development fallback if unset. This is fine for local use, but **any deployment (even internal) must set a long, random `JWT_SECRET`** — otherwise session tokens are forgeable. Generate one with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and keep it out of version control.
+
 ### LLM observability (Langfuse)
 
 When `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are set, Groq calls emit traces:
@@ -131,6 +147,8 @@ If keys are unset, tracing is a **no-op** — the app runs normally. Verify the 
 
 ## Docker
 
+> **Note:** This deployment guide targets the legacy Streamlit UI. The primary Next.js + FastAPI stack is currently run locally only (see [Quick start](#quick-start-nextjs--api) above); containerized deployment for it is planned.
+
 WeasyPrint's Pango/Cairo dependencies are pre-installed in the Dockerfile — no manual `apt-get` on the host.
 
 ```bash
@@ -145,6 +163,8 @@ Visit `http://localhost:8501` (Streamlit). For production, deploy the FastAPI se
 ---
 
 ## AWS EC2 deployment
+
+> **Note:** Like the Docker section above, this targets the legacy Streamlit UI. The Next.js + FastAPI stack currently runs locally only; a containerized deploy path for it is planned.
 
 Same Docker pattern as SmartSkale InterviewBot:
 
@@ -233,6 +253,22 @@ ats-checker/
 | `TESSERACT_CMD` | No | Path to `tesseract.exe` if not on PATH (Windows auto-detects Program Files). |
 
 Copy `resume_scorer/.env.example` to `.env` and fill in your keys. Core ATS scoring works without any of them.
+
+---
+
+## Testing
+
+An end-to-end script exercises signup → login → save profile → JD tailoring → history against a running API:
+
+```bash
+cd resume_scorer
+.venv\Scripts\activate                 # Windows (or source .venv/bin/activate)
+python -m uvicorn api.main:app --port 8000   # in one terminal
+
+python scripts/test_auth_profile.py    # in another
+```
+
+Verify the Langfuse connection separately with `python scripts/langfuse_smoke.py`.
 
 ---
 

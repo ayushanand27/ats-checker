@@ -635,8 +635,25 @@
     "Bitwarden",
     "Vault",
     "CyberArk",
-    "BeyondTrust"
+    "BeyondTrust",
+    "Data Analysis",
+    "Data Analytics",
+    "Web Analytics",
+    "Marketing Analytics",
+    "Data Visualization",
+    "Business Intelligence",
+    "KPI Reporting",
+    "Reporting",
+    "Dashboards",
+    "Market Research",
+    "Competitor Analysis",
+    "Campaign Management",
+    "Statistical Analysis",
+    "Trend Analysis",
+    "Conversion Rate Optimization",
+    "Google Search Console",
+    "Google Tag Manager"
   ],
-  "version": "1.0",
-  "count": 636
+  "version": "1.1",
+  "count": 653
 }
