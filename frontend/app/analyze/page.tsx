@@ -75,6 +75,7 @@ export default function AnalyzePage() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [rewrite, setRewrite] = useState<RewriteResponse | null>(null);
   const [beforeScore, setBeforeScore] = useState<number | null>(null);
+  const [restored, setRestored] = useState(false);
 
   const [fmtDocx, setFmtDocx] = useState(true);
   const [fmtPdf, setFmtPdf] = useState(true);
@@ -104,8 +105,19 @@ export default function AnalyzePage() {
       setRewrite(saved.rewrite);
       setBeforeScore(saved.beforeScore);
       setTemplate(saved.template);
+      setRestored(true);
       setSuccess("Restored your last analysis from this browser.");
     }
+  }, []);
+
+  const handleClearSession = useCallback(() => {
+    clearAnalyzeSession();
+    setResult(null);
+    setRewrite(null);
+    setBeforeScore(null);
+    setRestored(false);
+    setSuccess(null);
+    setError(null);
   }, []);
 
   useEffect(() => {
@@ -166,6 +178,7 @@ export default function AnalyzePage() {
     setSuccess(null);
     setRewrite(null);
     setBeforeScore(null);
+    setRestored(false);
     try {
       let data: AnalyzeResponse;
       if (isChatMode && chatDraft) {
@@ -361,7 +374,18 @@ export default function AnalyzePage() {
         {success && !error && (
           <Alert className="border-score-high/30">
             <AlertTitle className="text-score-high">Success</AlertTitle>
-            <AlertDescription>{success}</AlertDescription>
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>{success}</span>
+              {restored && (
+                <button
+                  type="button"
+                  className="shrink-0 rounded-sm border border-border px-2 py-1 text-xs font-medium text-text hover:bg-surface focus-ring"
+                  onClick={handleClearSession}
+                >
+                  Clear this data
+                </button>
+              )}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -842,12 +866,7 @@ export default function AnalyzePage() {
           <button
             type="button"
             className="ml-2 text-accent underline-offset-2 hover:underline"
-            onClick={() => {
-              clearAnalyzeSession();
-              setResult(null);
-              setRewrite(null);
-              setBeforeScore(null);
-            }}
+            onClick={handleClearSession}
           >
             Clear saved session
           </button>
