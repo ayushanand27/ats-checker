@@ -19,6 +19,9 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 - **Instant re-score** — inline editor and AI rewrite both re-run the full score pipeline with before/after delta
 - **JD input** — paste, upload, or fetch from a public job URL
 - **Resume builder chat** — Groq-guided interview tailored to the JD (~20–30 questions)
+- **User accounts + master profile** — sign in, save your resume once, then generate a tailored resume from just a JD (auto re-scored)
+- **Analysis history** — each tailoring run is saved per user and reloadable
+- **LLM observability** — optional Langfuse tracing of every Groq rewrite/chat call
 - **OCR for scanned PDFs** — optional recovery when native text extraction fails (requires Tesseract binary)
 - **Multi-format export** — PDF (WeasyPrint), DOCX, LaTeX from **Classic Tech** or **Classic Non-Tech** templates (+ custom DOCX)
 - **Browser session save** — last analysis restored from localStorage
@@ -97,9 +100,32 @@ Content generation and document rendering are **fully separated** — the same p
 | Keyword analysis | `scoring/keyword_analysis.py` | **Zero** |
 | Layer 2 — skill match | `scoring/semantic_match.py` | **Zero** (local `all-MiniLM-L6-v2`) |
 | AI rewriter | `insights/llm_rewriter.py` | **One** (opt-in button) |
+| Accounts / profiles / history | `api/db.py`, `api/auth.py`, `api/routes/{auth,profile}.py` | **Zero** (local SQLite + JWT) |
+| LLM tracing | `insights/tracing.py` | **Zero** (async to Langfuse, opt-in) |
 | PDF / DOCX / TeX | `renderers/` | **Zero** |
 
 **Score weights:** With JD → Layer 1 (35%) + Layer 2 (65%). Without JD → Layer 1 only (general ATS check).
+
+### User accounts & JD tailoring
+
+Sign in on `/analyze`, then:
+
+1. **Save current resume as my profile** — stores a reusable master profile (SQLite).
+2. **Generate from my profile** — paste any JD and get an AI-tailored, re-scored resume in one click.
+3. **History** — every tailoring run is saved and reloadable per user.
+
+Auth is self-contained: **PBKDF2** password hashing + **JWT** sessions, no external service. Set `JWT_SECRET` and a persistent `RESUMEMATCH_DB` path in production.
+
+### LLM observability (Langfuse)
+
+When `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are set, Groq calls emit traces:
+
+| Trace | When |
+|-------|------|
+| `resume_rewrite` | AI rewrite + Generate from profile |
+| `resume_chat_turn` | Each resume-builder chat turn |
+
+If keys are unset, tracing is a **no-op** — the app runs normally. Verify the connection with `python scripts/langfuse_smoke.py`.
 
 ---
 
@@ -163,7 +189,11 @@ ats-checker/
 ├── frontend/                       # Next.js 14 UI (primary)
 │   └── app/analyze/page.tsx
 └── resume_scorer/
-    ├── api/                        # FastAPI (analyze, chat, rewrite, generate)
+    ├── api/                        # FastAPI
+    │   ├── main.py                 # app + router wiring + DB init
+    │   ├── db.py                   # SQLite (users, profiles, analyses)
+    │   ├── auth.py                 # PBKDF2 hashing + JWT
+    │   └── routes/                 # analyze, chat, rewrite, generate, auth, profile
     ├── app.py                      # Legacy Streamlit UI
     ├── parser.py                   # PDF/DOCX/TXT + optional OCR
     ├── structurer.py
@@ -175,7 +205,11 @@ ats-checker/
     │   └── fix_suggestions.py
     ├── insights/
     │   ├── llm_rewriter.py
-    │   └── resume_chat.py
+    │   ├── resume_chat.py
+    │   └── tracing.py              # Langfuse (optional, no-op if unset)
+    ├── scripts/
+    │   ├── langfuse_smoke.py       # verify Langfuse connection
+    │   └── test_auth_profile.py    # auth + profile + tailor + history test
     ├── templates/
     │   ├── jacks_tech/             # Classic Tech Resume
     │   └── classic_nontech/
@@ -188,9 +222,17 @@ ats-checker/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GROQ_API_KEY` | No | Enables AI rewrite suggestions only. Get one at [console.groq.com](https://console.groq.com). |
+| `GROQ_API_KEY` | No | Enables AI rewrite, chat, and JD tailoring. Get one at [console.groq.com](https://console.groq.com). |
+| `JWT_SECRET` | Prod | Signs user session tokens. Use a long random string in production (dev has a fallback). |
+| `RESUMEMATCH_DB` | No | Path to the SQLite DB for accounts/profiles/history. Point to a persistent volume in production. |
+| `LANGFUSE_PUBLIC_KEY` | No | Enables LLM tracing. From [cloud.langfuse.com](https://cloud.langfuse.com) → Settings → API Keys. |
+| `LANGFUSE_SECRET_KEY` | No | Langfuse secret key (pairs with the public key). |
+| `LANGFUSE_BASE_URL` | No | Langfuse host, e.g. `https://cloud.langfuse.com`. |
+| `CORS_ORIGINS` | No | Comma-separated origins allowed to call the API (e.g. your Vercel URL). |
+| `SKIP_LAYER2` | No | Set to `1` on low-memory hosts to skip Layer 2 embeddings. |
+| `TESSERACT_CMD` | No | Path to `tesseract.exe` if not on PATH (Windows auto-detects Program Files). |
 
-Copy `resume_scorer/.env.example` to `.env` and fill in your key. Core ATS scoring works without it.
+Copy `resume_scorer/.env.example` to `.env` and fill in your keys. Core ATS scoring works without any of them.
 
 ---
 
@@ -209,15 +251,18 @@ Copy `resume_scorer/.env.example` to `.env` and fill in your key. Core ATS scori
 
 | Included | Not in v1 |
 |----------|-----------|
-| Next.js UI + FastAPI | User accounts / cloud sync |
-| PDF, DOCX, TeX export | Server-side `pdflatex` compile |
-| Classic Tech + Non-Tech templates | Multi-platform ATS profiles (Workday vs Greenhouse) |
-| Custom DOCX template upload | Payment / batch processing |
-| JD paste, upload, URL fetch | LinkedIn-protected URL scraping |
+| Next.js UI + FastAPI | Cloud DB (uses local SQLite) |
+| User accounts + saved master profile | Server-side `pdflatex` compile |
+| JD auto-tailoring + per-user history | Multi-platform ATS profiles (Workday vs Greenhouse) |
+| PDF, DOCX, TeX export | Payment / batch processing |
+| Classic Tech + Non-Tech templates | LinkedIn-protected URL scraping |
+| Custom DOCX template upload | Email verification / password reset |
+| JD paste, upload, URL fetch | |
 | Keyword placement + density analysis | |
 | OCR for scanned PDFs (with Tesseract) | |
 | Inline editor + auto re-score | |
 | Resume builder chat | |
+| Langfuse LLM tracing | |
 | Browser session persistence | |
 
 TeX output is **source only** — compile locally or upload to [Overleaf](https://www.overleaf.com).
