@@ -1,12 +1,21 @@
+import { authHeaders } from "./authToken";
 import type {
   AnalyzeParams,
   AnalyzeResponse,
   AnalyzeStructuredParams,
+  AuthResponse,
   GenerateParams,
+  HistoryDetail,
+  HistoryItem,
+  ProfileResponse,
+  PublicUser,
   ResumeChatRequest,
   ResumeChatResponse,
+  ResumeStruct,
   RewriteRequest,
   RewriteResponse,
+  TailorResponse,
+  TemplateChoice,
 } from "./types";
 
 const API_BASE =
@@ -172,4 +181,96 @@ export function downloadBlob(blob: Blob, filename: string): void {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// ----- Auth & user profile -----
+
+export async function registerUser(
+  email: string,
+  password: string,
+  name?: string,
+): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, name: name || null }),
+  });
+  return handleResponse<AuthResponse>(res);
+}
+
+export async function loginUser(
+  email: string,
+  password: string,
+): Promise<AuthResponse> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  return handleResponse<AuthResponse>(res);
+}
+
+export async function fetchCurrentUser(): Promise<PublicUser> {
+  const res = await fetch(`${API_BASE}/api/auth/me`, {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<PublicUser>(res);
+}
+
+export async function getProfile(): Promise<ProfileResponse> {
+  const res = await fetch(`${API_BASE}/api/profile`, {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<ProfileResponse>(res);
+}
+
+export async function saveProfile(profile: ResumeStruct): Promise<ProfileResponse> {
+  const res = await fetch(`${API_BASE}/api/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ profile }),
+  });
+  return handleResponse<ProfileResponse>(res);
+}
+
+export async function tailorProfile(params: {
+  jdText?: string;
+  template: TemplateChoice;
+  useAi?: boolean;
+  save?: boolean;
+}): Promise<TailorResponse> {
+  const res = await fetch(`${API_BASE}/api/profile/tailor`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      jd_text: params.jdText?.trim() || null,
+      template: params.template,
+      use_ai: params.useAi ?? true,
+      save: params.save ?? true,
+    }),
+  });
+  return handleResponse<TailorResponse>(res);
+}
+
+export async function listHistory(): Promise<HistoryItem[]> {
+  const res = await fetch(`${API_BASE}/api/history`, {
+    headers: { ...authHeaders() },
+  });
+  const data = await handleResponse<{ items: HistoryItem[] }>(res);
+  return data.items;
+}
+
+export async function getHistoryItem(id: number): Promise<HistoryDetail> {
+  const res = await fetch(`${API_BASE}/api/history/${id}`, {
+    headers: { ...authHeaders() },
+  });
+  return handleResponse<HistoryDetail>(res);
+}
+
+export async function deleteHistoryItem(id: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/history/${id}`, {
+    method: "DELETE",
+    headers: { ...authHeaders() },
+  });
+  await handleResponse<{ deleted: boolean }>(res);
 }

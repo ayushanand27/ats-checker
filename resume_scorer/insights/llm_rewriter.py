@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 from groq import Groq
 
+from insights.tracing import start_generation, usage_from_response
+
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are an expert resume writer focused on ATS optimization.
@@ -96,6 +98,8 @@ def get_rewrite_suggestions(
     jd: Optional[dict[str, Any]],
     gaps: dict[str, Any],
     api_key: Optional[str] = None,
+    trace_user_id: Optional[str] = None,
+    trace_session_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Single Groq API call returning structured rewritten resume JSON.
@@ -107,25 +111,39 @@ def get_rewrite_suggestions(
 
     client = Groq(api_key=key)
     user_prompt = _build_user_prompt(resume, jd, gaps)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
 
     last_error: Exception | None = None
     for attempt in range(2):
+        gen = start_generation(
+            name="resume_rewrite",
+            model=GROQ_MODEL,
+            input=messages,
+            metadata={"temperature": 0.3, "max_tokens": 4096, "attempt": attempt + 1},
+            user_id=trace_user_id,
+            session_id=trace_session_id,
+            tags=["rewrite"],
+        )
         try:
             response = client.chat.completions.create(
                 model=GROQ_MODEL,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
+                messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0.3,
                 max_tokens=4096,
             )
             content = response.choices[0].message.content or ""
-            return _parse_json_response(content)
+            parsed = _parse_json_response(content)
+            gen.end(output=content, usage=usage_from_response(response))
+            return parsed
         except json.JSONDecodeError as exc:
             last_error = exc
+            gen.error(exc)
         except Exception as exc:
+            gen.error(exc)
             raise RuntimeError(f"Groq API error: {exc}") from exc
 
     raise RuntimeError(f"Failed to parse LLM JSON response after retry: {last_error}")

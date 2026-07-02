@@ -35,5 +35,9 @@ Thumbs.db
 .cache/
 models/
 
+# Local user database (SQLite)
+resume_scorer/data/
+*.db
+
 # Docker
 *.log

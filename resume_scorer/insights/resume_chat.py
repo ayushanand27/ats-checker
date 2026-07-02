@@ -14,6 +14,7 @@ from insights.interview_quality import (
     quality_hints_for_llm,
 )
 from insights.resume_normalize import empty_resume_draft, normalize_resume_struct
+from insights.tracing import start_generation, usage_from_response
 from structurer import structure_jd
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
@@ -154,6 +155,8 @@ def resume_chat_turn(
     draft: Optional[dict[str, Any]] = None,
     user_message: Optional[str] = None,
     api_key: Optional[str] = None,
+    trace_user_id: Optional[str] = None,
+    trace_session_id: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     One chat turn. Pass user_message=None with empty messages to start the interview.
@@ -210,6 +213,15 @@ def resume_chat_turn(
 
     last_error: Exception | None = None
     for _attempt in range(2):
+        gen = start_generation(
+            name="resume_chat_turn",
+            model=GROQ_MODEL,
+            input=groq_messages,
+            metadata={"temperature": 0.35, "max_tokens": 4096, "attempt": _attempt + 1},
+            user_id=trace_user_id,
+            session_id=trace_session_id,
+            tags=["chat"],
+        )
         try:
             response = client.chat.completions.create(
                 model=GROQ_MODEL,
@@ -224,6 +236,7 @@ def resume_chat_turn(
             assistant_message = (parsed.get("assistant_message") or "").strip()
             if not assistant_message:
                 raise json.JSONDecodeError("Missing assistant_message", content, 0)
+            gen.end(output=content, usage=usage_from_response(response))
 
             merged_draft = _merge_draft(current_draft, parsed.get("draft") or {})
             normalized = normalize_resume_struct(merged_draft)
@@ -249,7 +262,9 @@ def resume_chat_turn(
             }
         except json.JSONDecodeError as exc:
             last_error = exc
+            gen.error(exc)
         except Exception as exc:
+            gen.error(exc)
             raise RuntimeError(f"Groq API error: {exc}") from exc
 
     raise RuntimeError(f"Failed to parse chat JSON after retry: {last_error}")

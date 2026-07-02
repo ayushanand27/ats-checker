@@ -8,7 +8,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import analyze, chat, generate, rewrite, utility
+from api import db
+from api.routes import analyze, auth, chat, generate, profile, rewrite, utility
 from api.schemas import HealthResponse
 
 load_dotenv()
@@ -42,6 +43,13 @@ app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(utility.router, prefix="/api", tags=["utility"])
 app.include_router(rewrite.router, prefix="/api", tags=["rewrite"])
 app.include_router(generate.router, prefix="/api", tags=["generate"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(profile.router, prefix="/api", tags=["profile"])
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    db.init_db()
 
 
 @app.get("/api/health", response_model=HealthResponse, tags=["health"])

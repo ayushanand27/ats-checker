@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/AuthContext";
 
 const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
@@ -33,7 +34,9 @@ export default function RootLayout({
       className={`${instrumentSerif.variable} ${ibmPlexSans.variable}`}
       style={{ colorScheme: "dark" }}
     >
-      <body className="bg-canvas font-sans text-text">{children}</body>
+      <body className="bg-canvas font-sans text-text">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

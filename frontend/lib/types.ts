@@ -182,3 +182,45 @@ export interface AnalyzeStructuredParams {
   template: TemplateChoice;
   source?: "chat" | "rescore" | "editor";
 }
+
+export interface PublicUser {
+  id: number;
+  email: string;
+  name?: string | null;
+  created_at?: string | null;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  user: PublicUser;
+}
+
+export interface ProfileResponse {
+  profile: ResumeStruct | null;
+  updated_at: string | null;
+}
+
+export interface TailorResponse {
+  analysis: AnalyzeResponse;
+  rewrite: RewriteResponse | null;
+  tailored_resume: ResumeStruct;
+  analysis_id: number | null;
+  ai_used: boolean;
+}
+
+export interface HistoryItem {
+  id: number;
+  jd_title?: string | null;
+  core_score?: number | null;
+  created_at: string;
+}
+
+export interface HistoryDetail {
+  id: number;
+  jd_title?: string | null;
+  jd_text?: string | null;
+  core_score?: number | null;
+  created_at: string;
+  result: AnalyzeResponse;
+}

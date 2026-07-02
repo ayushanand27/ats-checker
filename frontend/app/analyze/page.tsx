@@ -3,6 +3,8 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AccountMenu } from "@/components/auth/AccountMenu";
+import { ProfilePanel } from "@/components/auth/ProfilePanel";
 import { BeforeAfter } from "@/components/analyze/BeforeAfter";
 import { CheckGrid } from "@/components/analyze/CheckGrid";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
@@ -255,6 +257,17 @@ export default function AnalyzePage() {
     setJdMode("paste");
   };
 
+  const handleLoadAnalysis = (
+    res: AnalyzeResponse,
+    loadedRewrite: RewriteResponse | null,
+  ) => {
+    setResult(res);
+    setRewrite(loadedRewrite);
+    setBeforeScore(null);
+    setError(null);
+    if (res.template) setTemplate(res.template);
+  };
+
   const handleGenerate = async () => {
     if (!result) return;
     const formats: OutputFormat[] = [];
@@ -334,7 +347,7 @@ export default function AnalyzePage() {
           >
             ResumeMatch
           </Link>
-          <span className="text-xs uppercase tracking-wider text-text-muted">ATS Tool</span>
+          <AccountMenu />
         </div>
       </header>
 
@@ -351,6 +364,13 @@ export default function AnalyzePage() {
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         )}
+
+        <ProfilePanel
+          jdText={resolvedJdText || jdText}
+          template={template}
+          currentResume={result?.resume_struct ?? null}
+          onLoadAnalysis={handleLoadAnalysis}
+        />
 
         <section className="space-y-4">
           <StepLabel

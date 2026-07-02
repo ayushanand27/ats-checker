@@ -130,3 +130,73 @@ class AnalyzeStructuredRequest(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+
+# ----- Auth & user profile -----
+
+class RegisterRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=8, max_length=128)
+    name: Optional[str] = Field(None, max_length=120)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=254)
+    password: str = Field(..., min_length=1, max_length=128)
+
+
+class PublicUser(BaseModel):
+    id: int
+    email: str
+    name: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: PublicUser
+
+
+class ProfileRequest(BaseModel):
+    profile: dict[str, Any]
+
+
+class ProfileResponse(BaseModel):
+    profile: Optional[dict[str, Any]] = None
+    updated_at: Optional[str] = None
+
+
+class TailorRequest(BaseModel):
+    jd_text: Optional[str] = None
+    template: TemplateChoice = "jacks_tech"
+    use_ai: bool = True
+    save: bool = True
+
+
+class TailorResponse(BaseModel):
+    analysis: AnalyzeResponse
+    rewrite: Optional[RewriteResponse] = None
+    tailored_resume: dict[str, Any]
+    analysis_id: Optional[int] = None
+    ai_used: bool = False
+
+
+class HistoryItem(BaseModel):
+    id: int
+    jd_title: Optional[str] = None
+    core_score: Optional[float] = None
+    created_at: str
+
+
+class HistoryListResponse(BaseModel):
+    items: list[HistoryItem] = Field(default_factory=list)
+
+
+class HistoryDetailResponse(BaseModel):
+    id: int
+    jd_title: Optional[str] = None
+    jd_text: Optional[str] = None
+    core_score: Optional[float] = None
+    created_at: str
+    result: dict[str, Any]
