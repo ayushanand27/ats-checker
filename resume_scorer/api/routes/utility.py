@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from api.jd_fetch import fetch_jd_from_url
+from api.schemas import JdUrlRequest, JdUrlResponse
 from parser import extract_text
 
 router = APIRouter()
@@ -21,3 +23,12 @@ async def extract_jd_text(jd_file: UploadFile = File(...)) -> dict[str, str]:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"text": text}
+
+
+@router.post("/jd/fetch", response_model=JdUrlResponse)
+async def fetch_jd_url(body: JdUrlRequest) -> JdUrlResponse:
+    try:
+        text = fetch_jd_from_url(body.url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JdUrlResponse(text=text)

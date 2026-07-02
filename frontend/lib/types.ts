@@ -93,6 +93,24 @@ export interface JdStruct {
   [key: string]: unknown;
 }
 
+export interface KeywordAnalysis {
+  keyword_score: number;
+  match_rate_percent: number;
+  matched_keywords: {
+    keyword: string;
+    required: boolean;
+    match_type: string;
+    placements: string[];
+    count: number;
+  }[];
+  missing_keywords: string[];
+  placement_summary: Record<string, number>;
+  density_warnings: string[];
+  highlights: { keyword: string; line: string | null; status: string }[];
+  total_jd_keywords: number;
+  matched_count: number;
+}
+
 export interface AnalyzeResponse {
   core_score: number;
   jd_provided: boolean;
@@ -105,6 +123,7 @@ export interface AnalyzeResponse {
   gaps: ScoreGaps;
   top_fixes?: TopFix[];
   score_band?: string;
+  keyword_analysis?: KeywordAnalysis | null;
 }
 
 export interface RewriteRequest {
@@ -161,4 +180,5 @@ export interface AnalyzeStructuredParams {
   resumeStruct: ResumeStruct;
   jdText?: string;
   template: TemplateChoice;
+  source?: "chat" | "rescore" | "editor";
 }

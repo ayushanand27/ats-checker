@@ -1,10 +1,14 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-type JdMode = "paste" | "upload";
+type JdMode = "paste" | "upload" | "url";
 
 interface JdInputProps {
   mode: JdMode;
@@ -13,6 +17,9 @@ interface JdInputProps {
   onJdTextChange: (text: string) => void;
   jdFile: File | null;
   onJdFileChange: (file: File | null) => void;
+  jdUrl: string;
+  onJdUrlChange: (url: string) => void;
+  onFetchUrl?: (url: string) => Promise<void>;
   disabled?: boolean;
 }
 
@@ -23,12 +30,32 @@ export function JdInput({
   onJdTextChange,
   jdFile,
   onJdFileChange,
+  jdUrl,
+  onJdUrlChange,
+  onFetchUrl,
   disabled,
 }: JdInputProps) {
+  const [fetching, setFetching] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const handleFetch = async () => {
+    if (!onFetchUrl || !jdUrl.trim()) return;
+    setFetching(true);
+    setFetchError(null);
+    try {
+      await onFetchUrl(jdUrl.trim());
+      onModeChange("paste");
+    } catch (e) {
+      setFetchError(e instanceof Error ? e.message : "Could not fetch URL");
+    } finally {
+      setFetching(false);
+    }
+  };
+
   return (
     <div className="flex w-full flex-col">
       <div
-        className="grid w-full grid-cols-2 rounded-md border border-border bg-canvas p-0.5"
+        className="grid w-full grid-cols-3 rounded-md border border-border bg-canvas p-0.5"
         role="tablist"
         aria-label="Job description input method"
       >
@@ -36,6 +63,7 @@ export function JdInput({
           [
             ["paste", "Paste text"],
             ["upload", "Upload file"],
+            ["url", "From URL"],
           ] as const
         ).map(([value, label]) => (
           <button
@@ -46,12 +74,20 @@ export function JdInput({
             disabled={disabled}
             onClick={() => {
               if (value === mode) return;
-              if (value === "paste") onJdFileChange(null);
-              else onJdTextChange("");
+              if (value === "paste") {
+                onJdFileChange(null);
+                onJdUrlChange("");
+              } else if (value === "upload") {
+                onJdTextChange("");
+                onJdUrlChange("");
+              } else {
+                onJdTextChange("");
+                onJdFileChange(null);
+              }
               onModeChange(value);
             }}
             className={cn(
-              "rounded-sm px-3 py-2 text-xs font-medium transition-colors duration-micro",
+              "rounded-sm px-2 py-2 text-xs font-medium transition-colors duration-micro",
               mode === value
                 ? "bg-surface text-text shadow-sm"
                 : "text-text-muted hover:text-text",
@@ -73,7 +109,7 @@ export function JdInput({
             disabled={disabled}
             aria-label="Job description text"
           />
-        ) : (
+        ) : mode === "upload" ? (
           <FileDropzone
             accept=".pdf,.docx,.txt"
             label="Drop JD file here"
@@ -83,6 +119,35 @@ export function JdInput({
             disabled={disabled}
             className="w-full min-h-[140px]"
           />
+        ) : (
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                type="url"
+                placeholder="https://company.com/careers/job-id"
+                value={jdUrl}
+                onChange={(e) => onJdUrlChange(e.target.value)}
+                disabled={disabled || fetching}
+                aria-label="Job posting URL"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void handleFetch()}
+                disabled={disabled || fetching || !jdUrl.trim()}
+              >
+                {fetching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fetch"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-text-muted">
+              Pulls text from public job pages (LinkedIn may block). Fetched text loads into Paste.
+            </p>
+            {fetchError && (
+              <p className="text-xs text-fail" role="alert">
+                {fetchError}
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

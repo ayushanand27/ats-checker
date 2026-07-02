@@ -1,8 +1,16 @@
 "use client";
 
-import { ChevronDown, ChevronUp, Loader2, MessageSquare, Send } from "lucide-react";
+import { ChevronDown, ChevronUp, Expand, Loader2, MessageSquare, Send } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ResumePreview } from "@/components/analyze/ResumePreview";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { resumeChatTurn } from "@/lib/api";
@@ -29,6 +37,7 @@ function storageKey(jd: string) {
 
 function LiveDraftPanel({ draft }: { draft: ResumeStruct | null }) {
   const [open, setOpen] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
   if (!draft) return null;
 
   const contact = draft.contact ?? {};
@@ -37,30 +46,54 @@ function LiveDraftPanel({ draft }: { draft: ResumeStruct | null }) {
   const skillCount = draft.skills?.length ?? 0;
 
   return (
-    <div className="rounded-md border border-border bg-surface/80">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-text"
-      >
-        Live draft
-        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-      </button>
-      {open && (
-        <div className="space-y-2 border-t border-border px-3 py-2 text-xs text-text-muted">
-          <p>
-            <span className="text-text">{draft.name || "—"}</span>
-          </p>
-          <p>{contact.email || "No email yet"}</p>
-          <p>
-            {skillCount} skills · {expCount} roles · {projCount} projects
-          </p>
-          {draft.summary && (
-            <p className="line-clamp-3 leading-relaxed">{draft.summary}</p>
-          )}
-        </div>
-      )}
-    </div>
+    <>
+      <div className="rounded-md border border-border bg-surface/80">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-text"
+        >
+          Live draft
+          {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        </button>
+        {open && (
+          <div className="space-y-2 border-t border-border px-3 py-2 text-xs text-text-muted">
+            <p>
+              <span className="text-text">{draft.name || "—"}</span>
+            </p>
+            <p>{contact.email || "No email yet"}</p>
+            <p>
+              {skillCount} skills · {expCount} roles · {projCount} projects
+            </p>
+            {draft.summary && (
+              <p className="line-clamp-3 leading-relaxed">{draft.summary}</p>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="mt-1"
+              onClick={() => setPreviewOpen(true)}
+            >
+              <Expand className="mr-1 h-3 w-3" />
+              Full preview
+            </Button>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resume draft preview</DialogTitle>
+            <DialogDescription>
+              Live preview while you answer interview questions.
+            </DialogDescription>
+          </DialogHeader>
+          <ResumePreview resume={draft} />
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

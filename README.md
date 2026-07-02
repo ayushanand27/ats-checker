@@ -2,20 +2,70 @@
 
 **ATS scorer · AI rewriter · Multi-format resume generator**
 
-ResumeMatch is an open-source Streamlit app that scores how well a resume matches a job description (mirroring real-world ATS systems), suggests AI-rewritten improvements, and generates downloadable resumes in **PDF**, **DOCX**, or **LaTeX** — all from a chosen template.
+ResumeMatch scores how well a resume matches a job description using industry-weighted ATS checks (keyword placement, formatting parseability, semantic skill match), suggests AI-rewritten improvements, and generates downloadable resumes in **PDF**, **DOCX**, or **LaTeX**.
 
-> Core ATS scoring is **fully deterministic** (zero API calls). AI rewrite suggestions are **optional** and use a single Groq API call. Document rendering is **100% template-based** — the LLM never generates file formats directly.
+> Core ATS scoring is **fully deterministic** (zero API calls for scoring). AI rewrite and resume-builder chat are **optional** Groq features. Document rendering is **100% template-based**.
+
+**Primary UI:** Next.js app in `frontend/` (`npm run dev` → http://localhost:3000/analyze). Legacy Streamlit UI remains in `resume_scorer/app.py`.
 
 ---
 
 ## Features
 
-- **Instant ATS score** — rule-based structure checks + local semantic skill matching (no network required)
-- **Optional JD tailoring** — paste or upload a job description for keyword/skill gap analysis
-- **AI rewrite suggestions** — one Groq call returns structured JSON (summary, skills, bullets) with a strict no-fabrication policy
-- **Multi-format export** — same JSON feeds PDF (WeasyPrint), DOCX (python-docx), and LaTeX source (Jinja2)
-- **Two built-in templates** — Jack's Tech Resume & Classic Non-Tech Resume
-- **Docker-ready** — WeasyPrint system deps baked in for AWS EC2 deployment
+- **Industry-standard ATS scoring** — structure (35%) + semantic skill match (65%); keyword placement in summary/skills/experience; density warnings for stuffing
+- **Keyword highlight map** — see which JD terms appear in your resume text (exact + synonym at 0.8 weight, Workday/Taleo-style)
+- **Parsed ATS view** — how an ATS likely reads your sections, contact, and skills
+- **Formatting compatibility** — single-column, tables, headers/footers, file-type checks
+- **Instant re-score** — inline editor and AI rewrite both re-run the full score pipeline with before/after delta
+- **JD input** — paste, upload, or fetch from a public job URL
+- **Resume builder chat** — Groq-guided interview tailored to the JD (~20–30 questions)
+- **OCR for scanned PDFs** — optional recovery when native text extraction fails (requires Tesseract binary)
+- **Multi-format export** — PDF (WeasyPrint), DOCX, LaTeX from **Classic Tech** or **Classic Non-Tech** templates (+ custom DOCX)
+- **Browser session save** — last analysis restored from localStorage
+
+---
+
+## Quick start (Next.js + API)
+
+```bash
+git clone https://github.com/ayushanand27/ats-checker.git
+cd ats-checker
+
+# Terminal 1 — API
+cd resume_scorer
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # macOS/Linux
+pip install -r requirements.txt
+cp .env.example .env            # optional: GROQ_API_KEY for AI chat + rewrite
+
+python -m uvicorn api.main:app --port 8000
+
+# Terminal 2 — Frontend
+cd frontend
+npm install
+echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
+npm run dev
+```
+
+Open [http://localhost:3000/analyze](http://localhost:3000/analyze).
+
+> **First run** downloads `all-MiniLM-L6-v2` (~90 MB). Core scoring works offline after that.
+
+### Optional: OCR for scanned PDFs
+
+Install [Tesseract](https://github.com/tesseract-ocr/tesseract) on your system. `pytesseract` is already in `requirements.txt`.
+
+---
+
+## Quick start (Streamlit — legacy)
+
+```bash
+cd resume_scorer
+streamlit run app.py
+```
+
+Open [http://localhost:8501](http://localhost:8501).
 
 ---
 
@@ -43,35 +93,13 @@ Content generation and document rendering are **fully separated** — the same p
 |-------|--------|-----------|
 | Input parsing | `parser.py` | **Zero** |
 | Structure extraction | `structurer.py` | **Zero** |
-| Layer 1 — hygiene | `scoring/deterministic.py` | **Zero** |
+| Layer 1 — hygiene + formatting | `scoring/deterministic.py`, `formatting.py` | **Zero** |
+| Keyword analysis | `scoring/keyword_analysis.py` | **Zero** |
 | Layer 2 — skill match | `scoring/semantic_match.py` | **Zero** (local `all-MiniLM-L6-v2`) |
 | AI rewriter | `insights/llm_rewriter.py` | **One** (opt-in button) |
 | PDF / DOCX / TeX | `renderers/` | **Zero** |
 
 **Score weights:** With JD → Layer 1 (35%) + Layer 2 (65%). Without JD → Layer 1 only (general ATS check).
-
----
-
-## Quick start (local)
-
-```bash
-git clone https://github.com/ayushanand27/ats-checker.git
-cd ats-checker/resume_scorer
-
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
-
-pip install -r requirements.txt
-cp .env.example .env   # optional: add GROQ_API_KEY for AI suggestions
-streamlit run app.py
-```
-
-Open [http://localhost:8501](http://localhost:8501).
-
-> **First run** downloads the `all-MiniLM-L6-v2` embedding model (~90 MB). Core scoring works offline after that.
 
 ---
 
@@ -86,7 +114,7 @@ docker build -t resumematch .
 docker run -d -p 8501:8501 --env-file .env --name resumematch resumematch
 ```
 
-Visit `http://localhost:8501`.
+Visit `http://localhost:8501` (Streamlit). For production, deploy the FastAPI service (`uvicorn api.main:app`) + Next.js static export or Vercel — see `render.yaml`.
 
 ---
 
@@ -120,11 +148,11 @@ Access at `http://<EC2-public-ip>:8501`.
 
 ## Usage flow
 
-1. **Upload** resume (PDF, DOCX, or TXT) + optional job description + pick a template
-2. Click **Analyze** → ATS score appears instantly with expandable breakdown
-3. Optionally click **Get AI Suggestions** (requires `GROQ_API_KEY`)
-4. Review before/after comparison and change log
-5. **Generate Resume** → download PDF, DOCX, and/or `.tex` source
+1. **Upload** a resume or **build with chat** (JD required for chat) — paste/upload/fetch JD
+2. Click **Analyze** → ATS score with keyword map, parsed view, and top fixes
+3. **Edit inline** or click **Get AI Suggestions** (Groq) — both auto **re-score** with before/after delta
+4. Review keyword highlights, formatting checks, and change log
+5. **Preview & Download** → PDF, DOCX, and/or `.tex`
 
 ---
 
@@ -132,26 +160,26 @@ Access at `http://<EC2-public-ip>:8501`.
 
 ```
 ats-checker/
+├── frontend/                       # Next.js 14 UI (primary)
+│   └── app/analyze/page.tsx
 └── resume_scorer/
-    ├── app.py                      # Streamlit UI entrypoint
-    ├── parser.py                   # PDF/DOCX/TXT text extraction
-    ├── structurer.py               # Regex section & skill extraction
-    ├── skills_taxonomy.json        # ~600 skills for matching
+    ├── api/                        # FastAPI (analyze, chat, rewrite, generate)
+    ├── app.py                      # Legacy Streamlit UI
+    ├── parser.py                   # PDF/DOCX/TXT + optional OCR
+    ├── structurer.py
     ├── scoring/
-    │   ├── deterministic.py        # Layer 1: contact, sections, length
-    │   └── semantic_match.py       # Layer 2: embedding skill match
+    │   ├── deterministic.py
+    │   ├── semantic_match.py
+    │   ├── keyword_analysis.py
+    │   ├── formatting.py
+    │   └── fix_suggestions.py
     ├── insights/
-    │   └── llm_rewriter.py         # Single optional Groq call → JSON
+    │   ├── llm_rewriter.py
+    │   └── resume_chat.py
     ├── templates/
-    │   ├── jacks_tech/             # Tech-focused (HTML + LaTeX)
-    │   └── classic_nontech/        # Traditional layout (HTML + LaTeX)
-    ├── renderers/
-    │   ├── docx_renderer.py
-    │   ├── pdf_renderer.py
-    │   └── tex_renderer.py
-    ├── Dockerfile
-    ├── requirements.txt
-    └── .env.example
+    │   ├── jacks_tech/             # Classic Tech Resume
+    │   └── classic_nontech/
+    └── renderers/
 ```
 
 ---
@@ -168,11 +196,12 @@ Copy `resume_scorer/.env.example` to `.env` and fill in your key. Core ATS scori
 
 ## Tech stack
 
-- **Python 3.11** · **Streamlit** (UI)
-- **PyMuPDF** / **python-docx** (input parsing)
+- **Next.js 14** + **TypeScript** + **Tailwind** (primary UI)
+- **FastAPI** + **Python 3.11**
+- **PyMuPDF** / **python-docx** / optional **pytesseract** (input parsing)
 - **sentence-transformers** (`all-MiniLM-L6-v2`) — local semantic matching
-- **Groq** (`llama-3.3-70b-versatile`) — optional rewrite (one call)
-- **Jinja2** + **WeasyPrint** (PDF) + **python-docx** (DOCX) + **LaTeX templates** (TeX source)
+- **Groq** (`llama-3.3-70b-versatile`) — optional chat + rewrite
+- **Jinja2** + **WeasyPrint** (PDF) + **python-docx** (DOCX) + **LaTeX templates**
 
 ---
 
@@ -180,12 +209,16 @@ Copy `resume_scorer/.env.example` to `.env` and fill in your key. Core ATS scori
 
 | Included | Not in v1 |
 |----------|-----------|
-| PDF, DOCX, TeX export | Custom template upload (stubbed) |
-| Two built-in templates | JD-from-URL scraping |
-| Deterministic ATS score | OCR for scanned PDFs |
-| Optional AI rewrite | User accounts / persistence |
-| Docker + EC2 deploy | Server-side `pdflatex` compile |
-| | Payment / batch processing |
+| Next.js UI + FastAPI | User accounts / cloud sync |
+| PDF, DOCX, TeX export | Server-side `pdflatex` compile |
+| Classic Tech + Non-Tech templates | Multi-platform ATS profiles (Workday vs Greenhouse) |
+| Custom DOCX template upload | Payment / batch processing |
+| JD paste, upload, URL fetch | LinkedIn-protected URL scraping |
+| Keyword placement + density analysis | |
+| OCR for scanned PDFs (with Tesseract) | |
+| Inline editor + auto re-score | |
+| Resume builder chat | |
+| Browser session persistence | |
 
 TeX output is **source only** — compile locally or upload to [Overleaf](https://www.overleaf.com).
 

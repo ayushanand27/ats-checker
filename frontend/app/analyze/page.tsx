@@ -7,9 +7,13 @@ import { BeforeAfter } from "@/components/analyze/BeforeAfter";
 import { CheckGrid } from "@/components/analyze/CheckGrid";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
 import { JdInput } from "@/components/analyze/JdInput";
+import { KeywordAnalysisPanel } from "@/components/analyze/KeywordAnalysisPanel";
+import { KeywordHighlightedText } from "@/components/analyze/KeywordHighlightedText";
 import { ParsedResumeView } from "@/components/analyze/ParsedResumeView";
 import { ResumeChat } from "@/components/analyze/ResumeChat";
+import { ResumeEditor } from "@/components/analyze/ResumeEditor";
 import { ResumePreview } from "@/components/analyze/ResumePreview";
+import { ScoreComparison } from "@/components/analyze/ScoreComparison";
 import { ScoreGauge } from "@/components/analyze/ScoreGauge";
 import { SkillPills } from "@/components/analyze/SkillPills";
 import { StepLabel } from "@/components/analyze/StepLabel";
@@ -32,7 +36,9 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { analyzeResume, analyzeStructured, downloadBlob, extractJdText, generateResume, rewriteResume } from "@/lib/api";
+import { analyzeResume, analyzeStructured, downloadBlob, extractJdText, fetchJdFromUrl, generateResume, rewriteResume } from "@/lib/api";
+import { mergeRewrite } from "@/lib/mergeRewrite";
+import { clearAnalyzeSession, loadAnalyzeSession, saveAnalyzeSession } from "@/lib/session";
 import type {
   AnalyzeResponse,
   OutputFormat,
@@ -49,6 +55,7 @@ const TEMPLATE_OPTIONS: { label: string; value: TemplateChoice }[] = [
 
 type LoadingAction = "analyze" | "rewrite" | "generate" | null;
 type ResumeSource = "upload" | "chat";
+type JdMode = "paste" | "upload" | "url";
 
 export default function AnalyzePage() {
   const [resumeSource, setResumeSource] = useState<ResumeSource>("upload");
@@ -57,13 +64,15 @@ export default function AnalyzePage() {
   const [chatComplete, setChatComplete] = useState(false);
   const [jdText, setJdText] = useState("");
   const [jdFile, setJdFile] = useState<File | null>(null);
+  const [jdUrl, setJdUrl] = useState("");
   const [skipJd, setSkipJd] = useState(false);
-  const [jdMode, setJdMode] = useState<"paste" | "upload">("paste");
+  const [jdMode, setJdMode] = useState<JdMode>("paste");
   const [template, setTemplate] = useState<TemplateChoice>("jacks_tech");
   const [customTemplateFile, setCustomTemplateFile] = useState<File | null>(null);
 
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [rewrite, setRewrite] = useState<RewriteResponse | null>(null);
+  const [beforeScore, setBeforeScore] = useState<number | null>(null);
 
   const [fmtDocx, setFmtDocx] = useState(true);
   const [fmtPdf, setFmtPdf] = useState(true);
@@ -85,6 +94,28 @@ export default function AnalyzePage() {
     setError(msg);
     setSuccess(null);
   }, []);
+
+  useEffect(() => {
+    const saved = loadAnalyzeSession();
+    if (saved?.result) {
+      setResult(saved.result);
+      setRewrite(saved.rewrite);
+      setBeforeScore(saved.beforeScore);
+      setTemplate(saved.template);
+      setSuccess("Restored your last analysis from this browser.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!result) return;
+    saveAnalyzeSession({
+      result,
+      rewrite,
+      beforeScore,
+      template,
+      savedAt: new Date().toISOString(),
+    });
+  }, [beforeScore, result, rewrite, template]);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +163,7 @@ export default function AnalyzePage() {
     setError(null);
     setSuccess(null);
     setRewrite(null);
+    setBeforeScore(null);
     try {
       let data: AnalyzeResponse;
       if (isChatMode && chatDraft) {
@@ -139,6 +171,7 @@ export default function AnalyzePage() {
           resumeStruct: chatDraft,
           jdText: skipJd ? undefined : resolvedJdText,
           template,
+          source: "chat",
         });
       } else if (resumeFile) {
         data = await analyzeResume({
@@ -166,6 +199,7 @@ export default function AnalyzePage() {
     if (!result) return;
     setLoading("rewrite");
     setError(null);
+    const scoreBefore = result.core_score;
     try {
       const data = await rewriteResume({
         resume_struct: result.resume_struct,
@@ -173,12 +207,52 @@ export default function AnalyzePage() {
         gaps: result.gaps,
       });
       setRewrite(data);
-      setSuccess("AI suggestions ready — review before generating downloads.");
+      const merged = mergeRewrite(result.resume_struct, data);
+      const rescored = await analyzeStructured({
+        resumeStruct: merged,
+        jdText: skipJd ? undefined : resolvedJdText || jdText,
+        template,
+        source: "rescore",
+      });
+      setBeforeScore(scoreBefore);
+      setResult(rescored);
+      setSuccess(
+        `AI suggestions applied and re-scored. Score ${scoreBefore} → ${rescored.core_score}. Review before export.`,
+      );
     } catch (e) {
       showError(e instanceof Error ? e.message : "AI rewrite failed");
     } finally {
       setLoading(null);
     }
+  };
+
+  const handleEditorSave = async (updated: ResumeStruct) => {
+    if (!result) return;
+    setLoading("analyze");
+    setError(null);
+    const scoreBefore = result.core_score;
+    try {
+      const data = await analyzeStructured({
+        resumeStruct: updated,
+        jdText: skipJd ? undefined : resolvedJdText || jdText,
+        template,
+        source: "editor",
+      });
+      setBeforeScore(scoreBefore);
+      setResult(data);
+      setRewrite(null);
+      setSuccess("Resume updated and re-scored.");
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "Re-score failed");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleFetchJdUrl = async (url: string) => {
+    const text = await fetchJdFromUrl(url);
+    setJdText(text);
+    setJdMode("paste");
   };
 
   const handleGenerate = async () => {
@@ -391,6 +465,9 @@ export default function AnalyzePage() {
                     onJdTextChange={setJdText}
                     jdFile={jdFile}
                     onJdFileChange={setJdFile}
+                    jdUrl={jdUrl}
+                    onJdUrlChange={setJdUrl}
+                    onFetchUrl={handleFetchJdUrl}
                     disabled={loading !== null}
                   />
                 )}
@@ -518,6 +595,30 @@ export default function AnalyzePage() {
 
               <TopFixes fixes={result.top_fixes ?? []} />
 
+              {beforeScore != null && beforeScore !== result.core_score && (
+                <ScoreComparison before={beforeScore} after={result.core_score} />
+              )}
+
+              <ResumeEditor
+                resume={result.resume_struct}
+                disabled={loading !== null}
+                onSave={handleEditorSave}
+              />
+
+              {result.keyword_analysis && (
+                <KeywordAnalysisPanel analysis={result.keyword_analysis} />
+              )}
+
+              {result.resume_struct.raw_text && result.jd_provided && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-text">Keyword map in resume</h3>
+                  <KeywordHighlightedText
+                    text={result.resume_struct.raw_text}
+                    analysis={result.keyword_analysis}
+                  />
+                </div>
+              )}
+
               <ParsedResumeView resume={result.resume_struct} />
 
               <div className="space-y-3">
@@ -599,7 +700,7 @@ export default function AnalyzePage() {
                 subtitle="Optional — review every change before export"
               />
               <p className="text-xs text-text-muted">
-                One Groq API call — review every change before export
+                One Groq API call — auto re-scores after rewrite · review every change before export
               </p>
               <Button onClick={handleRewrite} disabled={loading !== null}>
                 {loading === "rewrite" && (
@@ -715,8 +816,21 @@ export default function AnalyzePage() {
         )}
 
         <footer className="border-t border-border pt-6 text-[11px] leading-relaxed text-text-muted">
-          ATS Compatibility Score is deterministic. AI suggestions are optional and never
-          fabricate experience. Independent tool — not affiliated with any employer ATS.
+          ATS Compatibility Score uses industry-weighted structure (35%) + semantic skill match (65%).
+          Keyword placement and density follow Workday/Taleo-style exact-match guidance.
+          AI suggestions are optional and never fabricate experience.
+          <button
+            type="button"
+            className="ml-2 text-accent underline-offset-2 hover:underline"
+            onClick={() => {
+              clearAnalyzeSession();
+              setResult(null);
+              setRewrite(null);
+              setBeforeScore(null);
+            }}
+          >
+            Clear saved session
+          </button>
         </footer>
       </main>
     </div>

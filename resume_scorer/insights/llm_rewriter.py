@@ -19,6 +19,8 @@ HARD RULES — NEVER VIOLATE:
 - Do NOT invent metrics, companies, dates, job titles, or experience that wasn't in the original.
 - Only rephrase, reorganize, and surface existing JD-relevant keywords where truthfully applicable.
 - If a metric doesn't exist in the source, do not add one — rephrase for impact without numbers instead.
+- For ATS keyword matching (Workday/Taleo style): when JD uses a full term and resume has only the acronym (or vice versa), use BOTH on first mention — e.g. "Search Engine Optimization (SEO)" or "Machine Learning (ML)".
+- Mirror exact JD terminology for hard skills where truthful; add the expanded form alongside acronyms.
 
 Return ONLY valid JSON matching this exact schema:
 {

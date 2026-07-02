@@ -13,6 +13,7 @@ from parser import (
     detect_multi_column_pdf,
     docx_has_tables,
     extract_text,
+    extract_text_from_pdf_with_ocr,
     validate_extracted_text,
 )
 from structurer import structure_resume
@@ -26,11 +27,16 @@ async def analyze_structured(body: AnalyzeStructuredRequest) -> AnalyzeResponse:
         raise HTTPException(status_code=400, detail=f"Invalid template: {body.template}")
     if not body.resume_struct:
         raise HTTPException(status_code=400, detail="resume_struct is required")
+    warnings = {
+        "chat": "Built via AI chat — review all content before exporting.",
+        "editor": "Edited in browser — verify facts before exporting.",
+        "rescore": None,
+    }
     return run_analysis(
         resume_struct=body.resume_struct,
         jd_raw=body.jd_text,
         template=body.template,
-        parse_warning="Built via AI chat — review all content before exporting.",
+        parse_warning=warnings.get(body.source),
     )
 
 
@@ -61,11 +67,18 @@ async def analyze(
         raise HTTPException(status_code=400, detail="Resume file is empty")
 
     try:
-        resume_raw = extract_text(resume_bytes, resume.filename)
+        if resume.filename.lower().endswith(".pdf"):
+            resume_raw, ocr_used = extract_text_from_pdf_with_ocr(resume_bytes)
+        else:
+            resume_raw = extract_text(resume_bytes, resume.filename)
+            ocr_used = False
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     parse_warning = validate_extracted_text(resume_raw)
+    if ocr_used:
+        ocr_note = "Scanned PDF — text recovered via OCR. Verify extracted content."
+        parse_warning = f"{parse_warning} | {ocr_note}" if parse_warning else ocr_note
 
     jd_raw = (jd_text or "").strip()
     if jd_file and jd_file.filename:

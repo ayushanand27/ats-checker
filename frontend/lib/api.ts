@@ -82,6 +82,7 @@ export async function analyzeStructured(
       resume_struct: params.resumeStruct,
       jd_text: params.jdText?.trim() || null,
       template: params.template,
+      source: params.source ?? "chat",
     }),
   });
   return handleResponse<AnalyzeResponse>(res);
@@ -101,6 +102,16 @@ export async function resumeChatTurn(
     }),
   });
   return handleResponse<ResumeChatResponse>(res);
+}
+
+export async function fetchJdFromUrl(url: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/jd/fetch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  const data = await handleResponse<{ text: string }>(res);
+  return data.text;
 }
 
 export async function extractJdText(file: File): Promise<string> {

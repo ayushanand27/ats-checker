@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import io
+import os
 import re
+import shutil
 from typing import Optional
 
 import fitz  # PyMuPDF
@@ -66,6 +68,65 @@ def extract_text_from_pdf(data: bytes) -> str:
     return "\n".join(parts).strip()
 
 
+def _configure_tesseract() -> bool:
+    """Point pytesseract at the Tesseract binary (Windows often lacks PATH entry)."""
+    try:
+        import pytesseract
+    except ImportError:
+        return False
+
+    if shutil.which("tesseract"):
+        return True
+
+    candidates = [
+        os.environ.get("TESSERACT_CMD", ""),
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+    ]
+    for path in candidates:
+        if path and os.path.isfile(path):
+            pytesseract.pytesseract.tesseract_cmd = path
+            return True
+    return False
+
+
+def extract_text_from_pdf_with_ocr(data: bytes) -> tuple[str, bool]:
+    """
+    Extract PDF text; attempt OCR when native extraction is sparse (scanned PDFs).
+    Requires pytesseract + Tesseract binary — falls back gracefully.
+    """
+    text = extract_text_from_pdf(data)
+    warning = validate_extracted_text(text)
+    if warning is None:
+        return text, False
+
+    try:
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return text, False
+
+    if not _configure_tesseract():
+        return text, False
+
+    doc = fitz.open(stream=data, filetype="pdf")
+    ocr_parts: list[str] = []
+    try:
+        for page in doc:
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            ocr_parts.append(pytesseract.image_to_string(img))
+    except Exception:
+        return text, False
+    finally:
+        doc.close()
+
+    ocr_text = "\n".join(ocr_parts).strip()
+    if len(ocr_text) > len(text.strip()) + 40:
+        return ocr_text, True
+    return text, False
+
+
 def extract_text_from_docx(data: bytes) -> str:
     doc = Document(io.BytesIO(data))
     parts: list[str] = []
@@ -88,7 +149,8 @@ def extract_text(data: bytes, filename: str) -> str:
     """Extract plain text from uploaded file bytes based on extension."""
     lower = filename.lower()
     if lower.endswith(".pdf"):
-        return extract_text_from_pdf(data)
+        text, _ = extract_text_from_pdf_with_ocr(data)
+        return text
     if lower.endswith(".docx"):
         return extract_text_from_docx(data)
     if lower.endswith(".txt"):

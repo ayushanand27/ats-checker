@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from api.deps import build_gaps_from_layer2, compose_score, get_embedding_model, layer2_enabled
-from api.schemas import AnalyzeResponse, Layer1Result, Layer2Result, ScoreGaps, TemplateChoice
+from api.schemas import AnalyzeResponse, KeywordAnalysis, Layer1Result, Layer2Result, ScoreGaps, TemplateChoice
 from insights.resume_normalize import normalize_resume_struct
 from scoring.deterministic import score_deterministic
 from scoring.fix_suggestions import build_top_fixes, score_band_label
+from scoring.keyword_analysis import analyze_keywords
 from scoring.semantic_match import LAYER2_SKIP_NO_SKILLS, score_semantic_match
 from structurer import structure_jd_or_none
 
@@ -60,6 +61,8 @@ def run_analysis(
         core, layer1, layer2, gaps, parse_warning, jd_provided
     )
     band = score_band_label(core, jd_provided)
+    kw_raw = analyze_keywords(resume_struct, jd_struct)
+    keyword_analysis = KeywordAnalysis(**kw_raw) if kw_raw else None
 
     return AnalyzeResponse(
         core_score=core,
@@ -73,4 +76,5 @@ def run_analysis(
         gaps=ScoreGaps(**gaps),
         top_fixes=top_fixes,
         score_band=band,
+        keyword_analysis=keyword_analysis,
     )

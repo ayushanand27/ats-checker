@@ -41,6 +41,24 @@ class Layer2Result(BaseModel):
     experience_note: Optional[str] = None
 
 
+class KeywordHighlight(BaseModel):
+    keyword: str
+    line: Optional[str] = None
+    status: str
+
+
+class KeywordAnalysis(BaseModel):
+    keyword_score: float
+    match_rate_percent: float
+    matched_keywords: list[dict[str, Any]] = Field(default_factory=list)
+    missing_keywords: list[str] = Field(default_factory=list)
+    placement_summary: dict[str, int] = Field(default_factory=dict)
+    density_warnings: list[str] = Field(default_factory=list)
+    highlights: list[KeywordHighlight] = Field(default_factory=list)
+    total_jd_keywords: int = 0
+    matched_count: int = 0
+
+
 class AnalyzeResponse(BaseModel):
     core_score: float
     jd_provided: bool
@@ -53,6 +71,15 @@ class AnalyzeResponse(BaseModel):
     gaps: ScoreGaps
     top_fixes: list[TopFix] = Field(default_factory=list)
     score_band: str = ""
+    keyword_analysis: Optional[KeywordAnalysis] = None
+
+
+class JdUrlRequest(BaseModel):
+    url: str = Field(..., min_length=8)
+
+
+class JdUrlResponse(BaseModel):
+    text: str
 
 
 class RewriteRequest(BaseModel):
@@ -98,6 +125,7 @@ class AnalyzeStructuredRequest(BaseModel):
     resume_struct: dict[str, Any]
     jd_text: Optional[str] = None
     template: TemplateChoice = "jacks_tech"
+    source: Literal["chat", "rescore", "editor"] = "chat"
 
 
 class ErrorResponse(BaseModel):
