@@ -6,19 +6,27 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
-from api.deps import (
-    VALID_TEMPLATES,
-    build_gaps_from_layer2,
-    compose_score,
-    get_embedding_model,
-)
-from api.schemas import AnalyzeResponse, Layer1Result, Layer2Result, ScoreGaps, TemplateChoice
+from api.analysis import run_analysis
+from api.deps import VALID_TEMPLATES
+from api.schemas import AnalyzeResponse, AnalyzeStructuredRequest, TemplateChoice
 from parser import extract_text, validate_extracted_text
-from scoring.deterministic import score_deterministic
-from scoring.semantic_match import LAYER2_SKIP_NO_SKILLS, score_semantic_match
-from structurer import structure_jd_or_none, structure_resume
+from structurer import structure_resume
 
 router = APIRouter()
+
+
+@router.post("/analyze/structured", response_model=AnalyzeResponse)
+async def analyze_structured(body: AnalyzeStructuredRequest) -> AnalyzeResponse:
+    if body.template not in VALID_TEMPLATES:
+        raise HTTPException(status_code=400, detail=f"Invalid template: {body.template}")
+    if not body.resume_struct:
+        raise HTTPException(status_code=400, detail="resume_struct is required")
+    return run_analysis(
+        resume_struct=body.resume_struct,
+        jd_raw=body.jd_text,
+        template=body.template,
+        parse_warning="Built via AI chat — review all content before exporting.",
+    )
 
 
 @router.post("/analyze", response_model=AnalyzeResponse)
@@ -65,47 +73,10 @@ async def analyze(
 
     pdf_bytes = resume_bytes if resume.filename.lower().endswith(".pdf") else None
     resume_struct = structure_resume(resume_raw, pdf_bytes=pdf_bytes)
-    jd_struct = structure_jd_or_none(jd_raw or None)
-    jd_provided = jd_struct is not None
 
-    layer1 = score_deterministic(resume_struct, jd_struct)
-    layer2 = None
-    layer2_error: Optional[str] = None
-    layer2_skip: Optional[str] = None
-
-    if jd_provided and jd_struct:
-        try:
-            model = get_embedding_model()
-            layer2 = score_semantic_match(resume_struct, jd_struct, model)
-            if layer2 is None and not layer2_error:
-                layer2_skip = LAYER2_SKIP_NO_SKILLS
-        except RuntimeError as exc:
-            layer2_error = str(exc)
-
-    core = compose_score(
-        layer1["score"],
-        layer2["score"] if layer2 else None,
-        jd_provided,
-    )
-
-    gaps = build_gaps_from_layer2(layer2)
-    if layer2_error and parse_warning:
-        parse_warning = f"{parse_warning} | Layer 2 skipped: {layer2_error}"
-    elif layer2_error:
-        parse_warning = f"Layer 2 skipped: {layer2_error}"
-    elif layer2_skip:
-        parse_warning = (
-            f"{parse_warning} | {layer2_skip}" if parse_warning else layer2_skip
-        )
-
-    return AnalyzeResponse(
-        core_score=core,
-        jd_provided=jd_provided,
+    return run_analysis(
+        resume_struct=resume_struct,
+        jd_raw=jd_raw or None,
         template=template,
         parse_warning=parse_warning,
-        resume_struct=resume_struct,
-        jd_struct=jd_struct,
-        layer1=Layer1Result(**layer1),
-        layer2=Layer2Result(**layer2) if layer2 else None,
-        gaps=ScoreGaps(**gaps),
     )

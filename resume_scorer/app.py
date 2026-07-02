@@ -43,7 +43,7 @@ LAYER2_WEIGHT_WITH_JD = 0.65
 LAYER1_WEIGHT_NO_JD = 1.0
 
 TEMPLATE_OPTIONS = {
-    "Jack's Tech Resume": "jacks_tech",
+    "Classic Tech Resume": "jacks_tech",
     "Classic Non-Tech Resume": "classic_nontech",
 }
 CUSTOM_TEMPLATE_LABEL = "Upload Custom Template"

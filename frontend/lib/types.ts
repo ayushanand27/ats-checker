@@ -119,3 +119,29 @@ export interface GenerateParams {
   rewritten?: RewriteResponse | null;
   customTemplate?: File | null;
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ResumeChatRequest {
+  jd_text: string;
+  messages?: ChatMessage[];
+  user_message?: string | null;
+  draft?: ResumeStruct | null;
+}
+
+export interface ResumeChatResponse {
+  message: string;
+  messages: ChatMessage[];
+  draft: ResumeStruct;
+  is_complete: boolean;
+  progress_percent: number;
+}
+
+export interface AnalyzeStructuredParams {
+  resumeStruct: ResumeStruct;
+  jdText?: string;
+  template: TemplateChoice;
+}

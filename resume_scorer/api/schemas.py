@@ -63,5 +63,31 @@ class HealthResponse(BaseModel):
     status: str = "ok"
 
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class ResumeChatRequest(BaseModel):
+    jd_text: str = Field(..., min_length=1)
+    messages: list[ChatMessage] = Field(default_factory=list)
+    user_message: Optional[str] = None
+    draft: Optional[dict[str, Any]] = None
+
+
+class ResumeChatResponse(BaseModel):
+    message: str
+    messages: list[ChatMessage]
+    draft: dict[str, Any]
+    is_complete: bool = False
+    progress_percent: int = 0
+
+
+class AnalyzeStructuredRequest(BaseModel):
+    resume_struct: dict[str, Any]
+    jd_text: Optional[str] = None
+    template: TemplateChoice = "jacks_tech"
+
+
 class ErrorResponse(BaseModel):
     detail: str

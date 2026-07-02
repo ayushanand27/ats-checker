@@ -11,6 +11,7 @@ interface FileDropzoneProps {
   file: File | null;
   onFile: (file: File | null) => void;
   disabled?: boolean;
+  className?: string;
 }
 
 export function FileDropzone({
@@ -20,6 +21,7 @@ export function FileDropzone({
   file,
   onFile,
   disabled,
+  className,
 }: FileDropzoneProps) {
   const [dragOver, setDragOver] = useState(false);
   const inputId = `file-${label.replace(/\s+/g, "-").toLowerCase()}`;
@@ -44,11 +46,12 @@ export function FileDropzone({
       onDragLeave={() => setDragOver(false)}
       onDrop={onDrop}
       className={cn(
-        "relative rounded-md border border-dashed p-5 text-center transition-colors duration-micro",
+        "relative w-full rounded-md border border-dashed p-5 text-center transition-colors duration-micro",
         dragOver
           ? "border-accent bg-surface-hover"
           : "border-border bg-surface hover:border-accent/50 hover:bg-surface-hover",
         disabled && "pointer-events-none opacity-50",
+        className,
       )}
     >
       <input

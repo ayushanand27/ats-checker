@@ -2,10 +2,12 @@
 
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BeforeAfter } from "@/components/analyze/BeforeAfter";
 import { CheckGrid } from "@/components/analyze/CheckGrid";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
+import { JdInput } from "@/components/analyze/JdInput";
+import { ResumeChat } from "@/components/analyze/ResumeChat";
 import { ScoreGauge } from "@/components/analyze/ScoreGauge";
 import { SkillPills } from "@/components/analyze/SkillPills";
 import { StepLabel } from "@/components/analyze/StepLabel";
@@ -13,36 +15,39 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
-import { analyzeResume, downloadBlob, generateResume, rewriteResume } from "@/lib/api";
+import { analyzeResume, analyzeStructured, downloadBlob, extractJdText, generateResume, rewriteResume } from "@/lib/api";
 import type {
   AnalyzeResponse,
   OutputFormat,
+  ResumeStruct,
   RewriteResponse,
   TemplateChoice,
 } from "@/lib/types";
 
 const TEMPLATE_OPTIONS: { label: string; value: TemplateChoice }[] = [
-  { label: "Jack's Tech Resume", value: "jacks_tech" },
+  { label: "Classic Tech Resume", value: "jacks_tech" },
   { label: "Classic Non-Tech Resume", value: "classic_nontech" },
-  { label: "Upload Custom Template", value: "custom" },
+  { label: "Custom Template (.docx)", value: "custom" },
 ];
 
 type LoadingAction = "analyze" | "rewrite" | "generate" | null;
+type ResumeSource = "upload" | "chat";
 
 export default function AnalyzePage() {
+  const [resumeSource, setResumeSource] = useState<ResumeSource>("upload");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [chatDraft, setChatDraft] = useState<ResumeStruct | null>(null);
+  const [chatComplete, setChatComplete] = useState(false);
   const [jdText, setJdText] = useState("");
   const [jdFile, setJdFile] = useState<File | null>(null);
   const [skipJd, setSkipJd] = useState(false);
+  const [jdMode, setJdMode] = useState<"paste" | "upload">("paste");
   const [template, setTemplate] = useState<TemplateChoice>("jacks_tech");
   const [customTemplateFile, setCustomTemplateFile] = useState<File | null>(null);
 
@@ -56,16 +61,58 @@ export default function AnalyzePage() {
   const [loading, setLoading] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [resolvedJdText, setResolvedJdText] = useState("");
 
   const isCustom = template === "custom";
+  const isChatMode = resumeSource === "chat";
+  const hasJdForChat = !skipJd && resolvedJdText.trim().length > 0;
+  const canAnalyze =
+    isChatMode ? chatComplete && chatDraft !== null : resumeFile !== null;
 
   const showError = useCallback((msg: string) => {
     setError(msg);
     setSuccess(null);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function resolveJd() {
+      if (skipJd) {
+        setResolvedJdText("");
+        return;
+      }
+      if (jdMode === "paste") {
+        setResolvedJdText(jdText);
+        return;
+      }
+      if (!jdFile) {
+        setResolvedJdText("");
+        return;
+      }
+      try {
+        const text = await extractJdText(jdFile);
+        if (!cancelled) setResolvedJdText(text);
+      } catch {
+        if (!cancelled) setResolvedJdText("");
+      }
+    }
+    void resolveJd();
+    return () => {
+      cancelled = true;
+    };
+  }, [jdFile, jdMode, jdText, skipJd]);
+
   const handleAnalyze = async () => {
-    if (!resumeFile) {
+    if (isChatMode) {
+      if (!chatDraft || !chatComplete) {
+        showError("Complete the resume chat before analyzing.");
+        return;
+      }
+      if (skipJd || !resolvedJdText.trim()) {
+        showError("A job description is required for chat-built resumes.");
+        return;
+      }
+    } else if (!resumeFile) {
       showError("Please upload a resume first.");
       return;
     }
@@ -74,12 +121,23 @@ export default function AnalyzePage() {
     setSuccess(null);
     setRewrite(null);
     try {
-      const data = await analyzeResume({
-        resume: resumeFile,
-        template,
-        jdText: skipJd ? undefined : jdText,
-        jdFile: skipJd ? null : jdFile,
-      });
+      let data: AnalyzeResponse;
+      if (isChatMode && chatDraft) {
+        data = await analyzeStructured({
+          resumeStruct: chatDraft,
+          jdText: skipJd ? undefined : resolvedJdText,
+          template,
+        });
+      } else if (resumeFile) {
+        data = await analyzeResume({
+          resume: resumeFile,
+          template,
+          jdText: skipJd ? undefined : jdText,
+          jdFile: skipJd ? null : jdFile,
+        });
+      } else {
+        return;
+      }
       setResult(data);
       if (data.parse_warning) {
         setSuccess(`Analysis complete. Note: ${data.parse_warning}`);
@@ -176,6 +234,8 @@ export default function AnalyzePage() {
         : undefined;
 
   const activeStep = result ? 2 : 1;
+  const templateLabel =
+    TEMPLATE_OPTIONS.find((o) => o.value === template)?.label ?? "Select template";
 
   return (
     <div className="min-h-screen bg-canvas text-text">
@@ -209,69 +269,117 @@ export default function AnalyzePage() {
           <StepLabel
             step={1}
             title="Upload & Configure"
-            subtitle="Resume required · Job description optional for tailored matching"
+            subtitle={
+              isChatMode
+                ? "Job description required · Build your resume via AI chat"
+                : "Resume required · Job description optional for tailored matching"
+            }
             active={activeStep === 1}
           />
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <FileDropzone
-              accept=".pdf,.docx,.txt"
-              label="Drop resume here"
-              hint="PDF, DOCX, or TXT · max 200MB"
-              file={resumeFile}
-              onFile={setResumeFile}
-              disabled={loading !== null}
-            />
-            <Card>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-3">
+              <div
+                className="grid w-full grid-cols-2 rounded-md border border-border bg-canvas p-0.5"
+                role="tablist"
+                aria-label="Resume input method"
+              >
+                {(
+                  [
+                    ["upload", "Upload resume"],
+                    ["chat", "Build with chat"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={resumeSource === value}
+                    disabled={loading !== null}
+                    onClick={() => {
+                      setResumeSource(value);
+                      setResult(null);
+                      setRewrite(null);
+                      if (value === "chat") setSkipJd(false);
+                    }}
+                    className={`rounded-sm px-3 py-2 text-xs font-medium transition-colors duration-micro ${
+                      resumeSource === value
+                        ? "bg-surface text-text shadow-sm"
+                        : "text-text-muted hover:text-text"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {isChatMode ? (
+                <ResumeChat
+                  key={resolvedJdText.slice(0, 120)}
+                  jdText={resolvedJdText}
+                  disabled={loading !== null || skipJd || !hasJdForChat}
+                  onDraftChange={(draft, complete) => {
+                    setChatDraft(draft);
+                    setChatComplete(complete);
+                  }}
+                />
+              ) : (
+                <FileDropzone
+                  accept=".pdf,.docx,.txt"
+                  label="Drop resume here"
+                  hint="PDF, DOCX, or TXT · max 200MB"
+                  file={resumeFile}
+                  onFile={setResumeFile}
+                  disabled={loading !== null}
+                  className="w-full min-h-[160px]"
+                />
+              )}
+            </div>
+
+            <Card className="flex h-full w-full flex-col">
               <CardHeader className="space-y-0 p-4 pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle>Job description</CardTitle>
-                  <label className="flex cursor-pointer items-center gap-2 text-xs text-text-muted">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <CardTitle>Job description</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      {isChatMode
+                        ? "Required for chat — questions are tailored to this role"
+                        : "Optional — enables tailored Layer 2 skill matching"}
+                    </CardDescription>
+                  </div>
+                  <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-text-muted">
                     <input
                       type="checkbox"
                       checked={skipJd}
-                      onChange={(e) => setSkipJd(e.target.checked)}
-                      className="rounded border-border bg-canvas focus-ring"
+                      onChange={(e) => {
+                        setSkipJd(e.target.checked);
+                        if (e.target.checked) {
+                          setJdText("");
+                          setJdFile(null);
+                        }
+                      }}
+                      disabled={isChatMode}
+                      className="rounded border-border bg-canvas focus-ring disabled:opacity-40"
                     />
-                    Skip (optional)
+                    Skip
                   </label>
                 </div>
-                <CardDescription>Tailored Layer 2 skill match</CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-2">
+              <CardContent className="flex flex-1 flex-col p-4 pt-2">
                 {skipJd ? (
-                  <p className="text-xs leading-relaxed text-text-muted">
-                    JD skipped — general ATS structure score only.
+                  <p className="rounded-md border border-dashed border-border bg-canvas/50 px-4 py-8 text-center text-sm text-text-muted">
+                    JD skipped — general ATS structure score only (Layer 1).
                   </p>
                 ) : (
-                  <Tabs defaultValue="paste">
-                    <TabsList className="h-8 w-full">
-                      <TabsTrigger value="paste" className="flex-1">
-                        Paste text
-                      </TabsTrigger>
-                      <TabsTrigger value="upload" className="flex-1">
-                        Upload file
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="paste" className="mt-3">
-                      <Textarea
-                        placeholder="Paste the full job description…"
-                        className="min-h-[120px] resize-y"
-                        value={jdText}
-                        onChange={(e) => setJdText(e.target.value)}
-                        disabled={loading !== null}
-                      />
-                    </TabsContent>
-                    <TabsContent value="upload" className="mt-3">
-                      <FileDropzone
-                        accept=".pdf,.docx,.txt"
-                        label="Drop JD file"
-                        file={jdFile}
-                        onFile={setJdFile}
-                        disabled={loading !== null}
-                      />
-                    </TabsContent>
-                  </Tabs>
+                  <JdInput
+                    mode={jdMode}
+                    onModeChange={setJdMode}
+                    jdText={jdText}
+                    onJdTextChange={setJdText}
+                    jdFile={jdFile}
+                    onJdFileChange={setJdFile}
+                    disabled={loading !== null}
+                  />
                 )}
               </CardContent>
             </Card>
@@ -287,9 +395,9 @@ export default function AnalyzePage() {
               disabled={loading !== null}
             >
               <SelectTrigger className="w-full max-w-md">
-                <SelectValue />
+                <span className="truncate">{templateLabel}</span>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="center">
                 {TEMPLATE_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
@@ -301,10 +409,12 @@ export default function AnalyzePage() {
             {isCustom && (
               <FileDropzone
                 accept=".docx"
-                label="Custom .docx template (Jinja2 placeholders)"
+                label="Upload custom .docx template"
+                hint="Jinja2 placeholders supported"
                 file={customTemplateFile}
                 onFile={setCustomTemplateFile}
                 disabled={loading !== null}
+                className="w-full max-w-md"
               />
             )}
           </div>
@@ -312,10 +422,10 @@ export default function AnalyzePage() {
           <Button
             size="lg"
             onClick={handleAnalyze}
-            disabled={loading !== null || !resumeFile}
+            disabled={loading !== null || !canAnalyze}
           >
             {loading === "analyze" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Analyze Resume
+            {isChatMode ? "Analyze Chat Resume" : "Analyze Resume"}
           </Button>
         </section>
 
@@ -536,7 +646,9 @@ export default function AnalyzePage() {
         {!result && loading !== "analyze" && (
           <Card className="border-dashed bg-transparent">
             <CardContent className="py-10 text-center text-xs text-text-muted">
-              Upload a resume and click Analyze to see your ATS score.
+              {isChatMode
+                ? "Add a job description, complete the chat interview, then analyze your ATS score."
+                : "Upload a resume and click Analyze to see your ATS score."}
             </CardContent>
           </Card>
         )}

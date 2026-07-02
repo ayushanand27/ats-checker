@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, FileSearch, Sparkles, Download } from "lucide-react";
+import { ArrowRight, FileSearch, MessageSquare, Sparkles, Download } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,11 @@ const FEATURES = [
     icon: FileSearch,
     title: "2-Layer ATS Score",
     desc: "Structure checks + semantic skill match against the JD",
+  },
+  {
+    icon: MessageSquare,
+    title: "AI Resume Chat",
+    desc: "Paste a JD and build your resume step-by-step via Groq chat",
   },
   {
     icon: Sparkles,

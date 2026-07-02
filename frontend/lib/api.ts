@@ -1,7 +1,10 @@
 import type {
   AnalyzeParams,
   AnalyzeResponse,
+  AnalyzeStructuredParams,
   GenerateParams,
+  ResumeChatRequest,
+  ResumeChatResponse,
   RewriteRequest,
   RewriteResponse,
 } from "./types";
@@ -67,6 +70,45 @@ export async function analyzeResume(
     body: form,
   });
   return handleResponse<AnalyzeResponse>(res);
+}
+
+export async function analyzeStructured(
+  params: AnalyzeStructuredParams,
+): Promise<AnalyzeResponse> {
+  const res = await fetch(`${API_BASE}/api/analyze/structured`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      resume_struct: params.resumeStruct,
+      jd_text: params.jdText?.trim() || null,
+      template: params.template,
+    }),
+  });
+  return handleResponse<AnalyzeResponse>(res);
+}
+
+export async function resumeChatTurn(
+  body: ResumeChatRequest,
+): Promise<ResumeChatResponse> {
+  const res = await fetch(`${API_BASE}/api/chat/resume`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jd_text: body.jd_text,
+      messages: body.messages ?? [],
+      user_message: body.user_message ?? null,
+      draft: body.draft ?? null,
+    }),
+  });
+  return handleResponse<ResumeChatResponse>(res);
+}
+
+export async function extractJdText(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("jd_file", file);
+  const res = await fetch(`${API_BASE}/api/jd/extract`, { method: "POST", body: form });
+  const data = await handleResponse<{ text: string }>(res);
+  return data.text;
 }
 
 export async function rewriteResume(

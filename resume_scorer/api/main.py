@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import analyze, generate, rewrite
+from api.routes import analyze, chat, generate, rewrite, utility
 from api.schemas import HealthResponse
 
 load_dotenv()
@@ -38,6 +38,8 @@ app.add_middleware(
 )
 
 app.include_router(analyze.router, prefix="/api", tags=["analyze"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(utility.router, prefix="/api", tags=["utility"])
 app.include_router(rewrite.router, prefix="/api", tags=["rewrite"])
 app.include_router(generate.router, prefix="/api", tags=["generate"])
 

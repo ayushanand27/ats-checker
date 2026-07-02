@@ -17,7 +17,7 @@ TEMPLATE_STYLES: dict[str, dict[str, Any]] = {
         "body_size": 10,
         "name_color": RGBColor(0x2C, 0x3E, 0x50),
         "heading_color": RGBColor(0x2C, 0x3E, 0x50),
-        "section_order": ["summary", "skills", "experience", "projects", "education"],
+        "section_order": ["summary", "skills", "experience", "projects", "education", "achievements"],
     },
     "classic_nontech": {
         "name_size": 16,
@@ -25,7 +25,7 @@ TEMPLATE_STYLES: dict[str, dict[str, Any]] = {
         "body_size": 11,
         "name_color": RGBColor(0x1A, 0x1A, 0x1A),
         "heading_color": RGBColor(0x33, 0x33, 0x33),
-        "section_order": ["summary", "experience", "education", "skills", "projects"],
+        "section_order": ["summary", "experience", "education", "skills", "projects", "achievements"],
     },
 }
 
@@ -66,10 +66,13 @@ def render_docx(data: dict[str, Any], template_name: str = "jacks_tech") -> byte
 
     contact = data.get("contact", {})
     contact_parts = [
-        contact.get("email", ""),
+        contact.get("location", ""),
         contact.get("phone", ""),
+        contact.get("email", ""),
         contact.get("linkedin", ""),
         contact.get("github", ""),
+        contact.get("leetcode", ""),
+        contact.get("portfolio", ""),
     ]
     contact_line = " | ".join(p for p in contact_parts if p)
     if contact_line:
@@ -84,6 +87,7 @@ def render_docx(data: dict[str, Any], template_name: str = "jacks_tech") -> byte
         "experience": lambda: _render_experience(doc, data, style),
         "education": lambda: _render_education(doc, data, style),
         "projects": lambda: _render_projects(doc, data, style),
+        "achievements": lambda: _render_achievements(doc, data, style),
     }
 
     for section_key in style["section_order"]:
@@ -105,7 +109,20 @@ def _render_summary(doc: Document, data: dict[str, Any], style: dict[str, Any]) 
 
 
 def _render_skills(doc: Document, data: dict[str, Any], style: dict[str, Any]) -> None:
+    categories = data.get("skill_categories") or {}
     skills = data.get("skills", [])
+    if isinstance(categories, dict) and any(categories.values()):
+        _add_heading(doc, "Technical Skills", style)
+        for label, items in categories.items():
+            if not items:
+                continue
+            p = doc.add_paragraph()
+            run = p.add_run(f"{label.replace('_', ' ').title()}: ")
+            run.bold = True
+            run.font.size = Pt(style["body_size"])
+            run2 = p.add_run(", ".join(items))
+            run2.font.size = Pt(style["body_size"])
+        return
     if not skills:
         return
     _add_heading(doc, "Skills", style)
@@ -122,8 +139,11 @@ def _render_experience(doc: Document, data: dict[str, Any], style: dict[str, Any
     for exp in experience:
         title = exp.get("title", "")
         company = exp.get("company", "")
+        location = exp.get("location", "")
         dates = exp.get("dates", "")
         header = " — ".join(p for p in [title, company] if p)
+        if location:
+            header = f"{header} ({location})" if header else location
         if dates:
             header = f"{header}  ({dates})" if header else dates
         if header:
@@ -142,8 +162,13 @@ def _render_education(doc: Document, data: dict[str, Any], style: dict[str, Any]
     _add_heading(doc, "Education", style)
     for edu in education:
         line = edu.get("degree", "")
+        gpa = edu.get("gpa", "")
         inst = edu.get("institution", "")
         dates = edu.get("dates", "")
+        if gpa and line:
+            line = f"{line} | CGPA: {gpa}"
+        elif gpa:
+            line = f"CGPA: {gpa}"
         if inst:
             line = f"{line}, {inst}" if line else inst
         if dates:
@@ -163,13 +188,29 @@ def _render_projects(doc: Document, data: dict[str, Any], style: dict[str, Any])
         name = proj.get("name", "")
         if name:
             p = doc.add_paragraph()
-            run = p.add_run(name)
+            tech = proj.get("tech_stack", "") or proj.get("description", "")
+            link = proj.get("link", "")
+            title = name
+            if tech:
+                title = f"{title} | {tech}"
+            if link:
+                title = f"{title} | {link}"
+            run = p.add_run(title)
             run.bold = True
             run.font.size = Pt(style["body_size"])
         desc = proj.get("description", "")
-        if desc:
+        if desc and not proj.get("tech_stack"):
             p = doc.add_paragraph(desc)
             for run in p.runs:
                 run.font.size = Pt(style["body_size"])
         for bullet in proj.get("bullets", []):
             _add_bullet(doc, bullet, style)
+
+
+def _render_achievements(doc: Document, data: dict[str, Any], style: dict[str, Any]) -> None:
+    achievements = data.get("achievements", [])
+    if not achievements:
+        return
+    _add_heading(doc, "Achievements & Recognition", style)
+    for item in achievements:
+        _add_bullet(doc, str(item), style)
