@@ -20,7 +20,16 @@ class ScoreGaps(BaseModel):
 class Layer1Result(BaseModel):
     score: float
     checks: list[dict[str, Any]]
+    formatting_checks: list[dict[str, Any]] = Field(default_factory=list)
     word_count: int
+    metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+class TopFix(BaseModel):
+    priority: int
+    title: str
+    detail: str
+    severity: str = "medium"
 
 
 class Layer2Result(BaseModel):
@@ -42,6 +51,8 @@ class AnalyzeResponse(BaseModel):
     layer1: Layer1Result
     layer2: Optional[Layer2Result] = None
     gaps: ScoreGaps
+    top_fixes: list[TopFix] = Field(default_factory=list)
+    score_band: str = ""
 
 
 class RewriteRequest(BaseModel):

@@ -1,11 +1,12 @@
 # Render Blueprint — ResumeMatch API (FastAPI + Docker)
-# Frontend: deploy separately on Vercel (root dir: frontend) or add a second Render Web Service.
+# Frontend: deploy on Vercel (root dir: frontend)
 #
-# Required env vars (set in Render dashboard):
-#   GROQ_API_KEY   — for AI chat + rewrite
-#   CORS_ORIGINS   — comma-separated frontend URL(s), e.g. https://your-app.vercel.app
+# Required env vars (Render dashboard):
+#   GROQ_API_KEY   — AI chat + rewrite
+#   CORS_ORIGINS   — e.g. https://your-app.vercel.app
 #
-# Note: Use at least Starter plan (512MB free tier may OOM on torch/embeddings load).
+# Render FREE tier (512MB): set SKIP_LAYER2=1 to avoid OOM from torch/embeddings.
+# Render STARTER ($7): leave SKIP_LAYER2 unset for full Layer 2 skill matching.
 
 services:
   - type: web
@@ -13,10 +14,12 @@ services:
     runtime: docker
     dockerfilePath: ./resume_scorer/Dockerfile.api
     dockerContext: ./resume_scorer
-    plan: starter
+    plan: free
     healthCheckPath: /api/health
     envVars:
       - key: GROQ_API_KEY
         sync: false
       - key: CORS_ORIGINS
         sync: false
+      - key: SKIP_LAYER2
+        value: "1"

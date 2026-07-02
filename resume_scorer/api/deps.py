@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -11,6 +12,11 @@ LAYER1_WEIGHT_NO_JD = 1.0
 
 VALID_TEMPLATES = frozenset({"jacks_tech", "classic_nontech", "custom"})
 VALID_FORMATS = frozenset({"docx", "pdf", "tex"})
+
+
+def layer2_enabled() -> bool:
+    """False when SKIP_LAYER2=1 — for low-memory deploy (Render free tier)."""
+    return os.getenv("SKIP_LAYER2", "").strip().lower() not in ("1", "true", "yes")
 
 
 def compose_score(

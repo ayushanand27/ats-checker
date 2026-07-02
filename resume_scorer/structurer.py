@@ -719,6 +719,9 @@ def _extract_jd_responsibility_skills(extraction_text: str, taxonomy: list[str])
         extraction_text,
         _extract_skills(chunk[:2500], taxonomy),
     )
+
+
+def _skill_context_bucket(text: str, skill: str, intro: str) -> str:
     """Classify a skill as required or preferred using keyword proximity."""
     pattern = _skill_match_pattern(skill)
     votes_required = 0

@@ -7,13 +7,24 @@ import { BeforeAfter } from "@/components/analyze/BeforeAfter";
 import { CheckGrid } from "@/components/analyze/CheckGrid";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
 import { JdInput } from "@/components/analyze/JdInput";
+import { ParsedResumeView } from "@/components/analyze/ParsedResumeView";
 import { ResumeChat } from "@/components/analyze/ResumeChat";
+import { ResumePreview } from "@/components/analyze/ResumePreview";
 import { ScoreGauge } from "@/components/analyze/ScoreGauge";
 import { SkillPills } from "@/components/analyze/SkillPills";
 import { StepLabel } from "@/components/analyze/StepLabel";
+import { TopFixes } from "@/components/analyze/TopFixes";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -61,6 +72,7 @@ export default function AnalyzePage() {
   const [loading, setLoading] = useState<LoadingAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [resolvedJdText, setResolvedJdText] = useState("");
 
   const isCustom = template === "custom";
@@ -227,11 +239,12 @@ export default function AnalyzePage() {
         ? "ATS Structure Score"
         : "General ATS Score";
   const scoreHint =
-    result && !result.jd_provided
+    result?.score_band ||
+    (result && !result.jd_provided
       ? "Add a job description for tailored skill matching (Layer 1 only)."
       : result?.jd_provided && !result.layer2
         ? "Skill match not applicable — JD has no extractable skills. Score reflects structure only."
-        : undefined;
+        : undefined);
 
   const activeStep = result ? 2 : 1;
   const templateLabel =
@@ -454,11 +467,20 @@ export default function AnalyzePage() {
               <Card>
                 <CardContent className="p-5">
                   <div className="grid gap-6 md:grid-cols-2">
-                    <ScoreGauge
-                      score={result.core_score}
-                      label={scoreLabel}
-                      hint={scoreHint}
-                    />
+                    <div>
+                      <ScoreGauge
+                        score={result.core_score}
+                        label={scoreLabel}
+                        hint={scoreHint}
+                      />
+                      {result.gaps.experience_note && (
+                        <Alert className="mt-2 border-accent/40">
+                          <AlertDescription className="text-xs">
+                            Experience note: {result.gaps.experience_note}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
                     <div className="flex flex-col justify-center gap-5 border-t border-border pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0">
                       <div>
                         <p className="text-xs uppercase tracking-wider text-text-muted">
@@ -494,6 +516,10 @@ export default function AnalyzePage() {
                 </CardContent>
               </Card>
 
+              <TopFixes fixes={result.top_fixes ?? []} />
+
+              <ParsedResumeView resume={result.resume_struct} />
+
               <div className="space-y-3">
                 <h3 className="text-sm font-medium text-text">
                   Layer 1 — Structure &amp; Hygiene
@@ -503,6 +529,15 @@ export default function AnalyzePage() {
                 </h3>
                 <CheckGrid checks={result.layer1.checks} />
               </div>
+
+              {!!result.layer1.formatting_checks?.length && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-text">
+                    ATS formatting compatibility
+                  </h3>
+                  <CheckGrid checks={result.layer1.formatting_checks} />
+                </div>
+              )}
 
               {result.jd_provided && result.layer2 && (
                 <div className="space-y-3">
@@ -633,12 +668,38 @@ export default function AnalyzePage() {
                 </div>
               )}
 
-              <Button variant="outline" onClick={handleGenerate} disabled={loading !== null}>
-                {loading === "generate" && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Generate &amp; Download
+              <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={loading !== null}>
+                Preview &amp; Download
               </Button>
+
+              <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+                <DialogContent className="max-w-3xl">
+                  <DialogHeader>
+                    <DialogTitle>Resume preview</DialogTitle>
+                    <DialogDescription>
+                      Review content before export — uses AI suggestions if you ran rewrite.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ResumePreview resume={result.resume_struct} rewritten={rewrite} />
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={() => setPreviewOpen(false)}>
+                      Back
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setPreviewOpen(false);
+                        void handleGenerate();
+                      }}
+                      disabled={loading !== null}
+                    >
+                      {loading === "generate" && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Confirm download
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </section>
           </>
         )}

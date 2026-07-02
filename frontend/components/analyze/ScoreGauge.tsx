@@ -9,16 +9,16 @@ interface ScoreGaugeProps {
 }
 
 function arcColor(score: number): string {
-  if (score >= 75) return "#6B8F7A";
-  if (score >= 50) return "#8B7355";
+  if (score >= 80) return "#6B8F7A";
+  if (score >= 60) return "#8B7355";
   return "#9B6B6B";
 }
 
 function scoreVerdict(score: number): string {
-  if (score >= 85) return "Excellent";
-  if (score >= 75) return "Strong";
-  if (score >= 60) return "Good";
-  if (score >= 45) return "Fair";
+  if (score >= 90) return "Excellent";
+  if (score >= 80) return "Strong";
+  if (score >= 70) return "Good";
+  if (score >= 60) return "Fair";
   return "Needs work";
 }
 

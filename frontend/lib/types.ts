@@ -20,7 +20,16 @@ export interface Layer1Check {
 export interface Layer1Result {
   score: number;
   checks: Layer1Check[];
+  formatting_checks?: Layer1Check[];
   word_count: number;
+  metrics?: { total_bullets?: number; bullets_with_metrics?: number };
+}
+
+export interface TopFix {
+  priority: number;
+  title: string;
+  detail: string;
+  severity: string;
 }
 
 export interface Layer2Result {
@@ -37,12 +46,16 @@ export interface ResumeContact {
   phone?: string | null;
   linkedin?: string | null;
   github?: string | null;
+  location?: string | null;
+  leetcode?: string | null;
+  portfolio?: string | null;
 }
 
 export interface ExperienceEntry {
   title?: string;
   company?: string;
   dates?: string;
+  location?: string;
   bullets?: string[];
 }
 
@@ -50,6 +63,8 @@ export interface EducationEntry {
   degree?: string;
   institution?: string;
   dates?: string;
+  gpa?: string;
+  location?: string;
 }
 
 export interface ResumeStruct {
@@ -88,6 +103,8 @@ export interface AnalyzeResponse {
   layer1: Layer1Result;
   layer2: Layer2Result | null;
   gaps: ScoreGaps;
+  top_fixes?: TopFix[];
+  score_band?: string;
 }
 
 export interface RewriteRequest {

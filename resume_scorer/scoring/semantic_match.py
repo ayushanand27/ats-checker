@@ -23,6 +23,9 @@ def jd_has_matchable_skills(jd: dict[str, Any]) -> bool:
     )
 
 
+from scoring.skill_aliases import expand_skills_for_matching
+
+
 def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
     denom = np.linalg.norm(a) * np.linalg.norm(b)
     if denom == 0:
@@ -66,7 +69,7 @@ def score_semantic_match(
     if not jd_has_matchable_skills(jd):
         return None
 
-    resume_skills = resume.get("skills", [])
+    resume_skills = expand_skills_for_matching(resume.get("skills", []))
     required = jd.get("required_skills", [])
     preferred = jd.get("preferred_skills", [])
 

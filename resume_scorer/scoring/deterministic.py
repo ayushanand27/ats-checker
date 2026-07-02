@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from parser import alphanumeric_ratio
+from scoring.formatting import check_formatting
 
 
 REQUIRED_SECTIONS = {"experience", "education", "skills"}
@@ -110,12 +111,18 @@ def score_deterministic(
         15,
     ))
 
-    total_weight = sum(c["weight"] for c in checks)
-    earned = sum(c["score"] for c in checks)
+    formatting_checks = check_formatting(resume)
+    hygiene_checks = checks
+    all_checks = hygiene_checks + formatting_checks
+
+    total_weight = sum(c["weight"] for c in all_checks)
+    earned = sum(c["score"] for c in all_checks)
     score = round((earned / total_weight) * 100, 1) if total_weight else 0.0
 
     return {
         "score": score,
-        "checks": checks,
+        "checks": hygiene_checks,
+        "formatting_checks": formatting_checks,
         "word_count": word_count,
+        "metrics": metrics,
     }

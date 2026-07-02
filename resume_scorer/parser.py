@@ -96,6 +96,33 @@ def extract_text(data: bytes, filename: str) -> str:
     raise ValueError(f"Unsupported file type: {filename}")
 
 
+def detect_multi_column_pdf(data: bytes) -> bool:
+    """True when PDF blocks suggest a multi-column layout."""
+    doc = fitz.open(stream=data, filetype="pdf")
+    try:
+        for page in doc:
+            blocks = page.get_text("blocks")
+            x0_values = sorted(
+                float(b[0]) for b in blocks if len(b) >= 5 and str(b[4]).strip()
+            )
+            if len(x0_values) < 4:
+                continue
+            page_width = page.rect.width
+            mid = len(x0_values) // 2
+            gap = x0_values[mid] - x0_values[mid - 1]
+            if gap > page_width * 0.08:
+                return True
+    finally:
+        doc.close()
+    return False
+
+
+def docx_has_tables(data: bytes) -> bool:
+    """True when DOCX contains table structures."""
+    doc = Document(io.BytesIO(data))
+    return len(doc.tables) > 0
+
+
 def alphanumeric_ratio(text: str) -> float:
     if not text:
         return 0.0

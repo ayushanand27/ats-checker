@@ -9,7 +9,12 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from api.analysis import run_analysis
 from api.deps import VALID_TEMPLATES
 from api.schemas import AnalyzeResponse, AnalyzeStructuredRequest, TemplateChoice
-from parser import extract_text, validate_extracted_text
+from parser import (
+    detect_multi_column_pdf,
+    docx_has_tables,
+    extract_text,
+    validate_extracted_text,
+)
 from structurer import structure_resume
 
 router = APIRouter()
@@ -73,6 +78,13 @@ async def analyze(
 
     pdf_bytes = resume_bytes if resume.filename.lower().endswith(".pdf") else None
     resume_struct = structure_resume(resume_raw, pdf_bytes=pdf_bytes)
+
+    parse_flags: dict[str, bool] = {}
+    if pdf_bytes:
+        parse_flags["multi_column_layout"] = detect_multi_column_pdf(pdf_bytes)
+    if resume.filename.lower().endswith(".docx"):
+        parse_flags["docx_tables"] = docx_has_tables(resume_bytes)
+    resume_struct["parse_flags"] = parse_flags
 
     return run_analysis(
         resume_struct=resume_struct,
