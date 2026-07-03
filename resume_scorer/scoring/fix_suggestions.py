@@ -123,10 +123,10 @@ def score_band_label(score: float, jd_provided: bool) -> str:
     """Industry-standard score interpretation bands."""
     if not jd_provided:
         if score >= 85:
-            return "Strong structure — add a JD for tailored skill matching"
+            return "Strong structure health — add a JD for a real ATS match score"
         if score >= 70:
-            return "Good structure — add a JD for full ATS match score"
-        return "Structure needs work before applying"
+            return "Good structure health — add a JD for a real ATS match score"
+        return "Structure needs work — fix parsing/formatting, then add a JD"
 
     if score >= 90:
         return "Excellent match (90+) — strong alignment with this JD"

@@ -337,11 +337,11 @@ export default function AnalyzePage() {
       ? "ATS Match Score"
       : result?.jd_provided
         ? "ATS Structure Score"
-        : "General ATS Score";
+        : "Structure Health Score";
   const scoreHint =
     result?.score_band ||
     (result && !result.jd_provided
-      ? "Add a job description for tailored skill matching (Layer 1 only)."
+      ? "Structure/parse health only — not an ATS match score. Add a job description to score how well you match a specific role."
       : result?.jd_provided && !result.layer2
         ? "Skill match not applicable — JD has no extractable skills. Score reflects structure only."
         : undefined);
@@ -584,6 +584,18 @@ export default function AnalyzePage() {
                 subtitle="Two-layer analysis — structure + skill alignment"
                 active
               />
+
+              {!result.jd_provided && (
+                <Alert className="border-accent/40">
+                  <AlertTitle className="text-accent">Structure health only</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    No job description provided, so this is a parse/structure health
+                    score — <strong>not an ATS match score</strong>. Real ATS scores are
+                    always relative to a specific job. Add a JD above to see how well you
+                    match a role (Layer 2 skill matching).
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Card>
                 <CardContent className="p-5">

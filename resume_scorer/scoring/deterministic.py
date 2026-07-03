@@ -22,6 +22,29 @@ def _check(name: str, passed: bool, reason: str, weight: float) -> dict[str, Any
     }
 
 
+def _graded(
+    name: str,
+    fraction: float,
+    passed: bool,
+    reason: str,
+    weight: float,
+) -> dict[str, Any]:
+    """A check whose score scales with a 0–1 fraction instead of pass/fail.
+
+    Used for inherently continuous signals (e.g. quantified-bullet ratio,
+    parse cleanliness) so a partially-met check no longer earns full marks.
+    ``passed`` still drives the green/attention badge in the UI.
+    """
+    fraction = max(0.0, min(1.0, fraction))
+    return {
+        "name": name,
+        "passed": passed,
+        "reason": reason,
+        "weight": weight,
+        "score": round(weight * fraction, 2),
+    }
+
+
 def score_deterministic(
     resume: dict[str, Any],
     jd: dict[str, Any] | None = None,
@@ -79,8 +102,13 @@ def score_deterministic(
 
     ratio = alphanumeric_ratio(raw)
     parse_ok = ratio >= 0.5
-    checks.append(_check(
+    # Graded: 0 at/below 0.5 (corruption floor), full at 0.85+. Normal clean
+    # text sits ~0.78–0.82, so even a well-parsed resume gives up a couple of
+    # points here — real ATS parse fidelity is rarely called "perfect".
+    parse_fraction = (ratio - 0.5) / (0.85 - 0.5)
+    checks.append(_graded(
         "Parse quality",
+        parse_fraction,
         parse_ok,
         f"Alphanumeric ratio {ratio:.0%} — text extracted cleanly"
         if parse_ok
@@ -91,21 +119,37 @@ def score_deterministic(
     metrics = resume.get("metrics", {})
     total_bullets = metrics.get("total_bullets", 0)
     with_metrics = metrics.get("bullets_with_metrics", 0)
-    metric_ratio = (with_metrics / total_bullets) if total_bullets else 0
-    metrics_ok = total_bullets == 0 or metric_ratio >= 0.3
-    checks.append(_check(
+    metric_ratio = (with_metrics / total_bullets) if total_bullets else 0.0
+    if total_bullets == 0:
+        # No bullets parsed — can't quantify. Neutral (half) rather than a
+        # free full pass, since a bullet-less experience section is itself weak.
+        metrics_fraction = 0.5
+        metrics_ok = False
+        metrics_reason = "No quantified experience bullets detected — add metrics (e.g. 'cut latency 40%')"
+    else:
+        # Linear with the quantified ratio: full marks only when (nearly) every
+        # bullet carries a metric. 2/4 = 50% now earns 50% of the weight.
+        metrics_fraction = metric_ratio
+        metrics_ok = metric_ratio >= 0.6
+        metrics_reason = (
+            f"{with_metrics}/{total_bullets} experience bullets include metrics"
+            + ("" if metrics_ok else " — quantify more bullets for a higher score")
+        )
+    checks.append(_graded(
         "Quantified bullets",
+        metrics_fraction,
         metrics_ok,
-        f"{with_metrics}/{total_bullets} experience bullets include metrics"
-        if total_bullets
-        else "No experience bullets detected to evaluate",
+        metrics_reason,
         15,
     ))
 
+    # Skills breadth: below 5 is thin; 5–10 scales; 10+ is full.
     skills_count = len(resume.get("skills", []))
     skills_ok = skills_count >= 5
-    checks.append(_check(
+    skills_fraction = skills_count / 10.0
+    checks.append(_graded(
         "Skills breadth",
+        skills_fraction,
         skills_ok,
         f"{skills_count} skills detected" if skills_ok else f"Only {skills_count} skills detected — add more relevant keywords",
         15,
