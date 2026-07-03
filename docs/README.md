@@ -1,12 +1,15 @@
 # Screenshots
 
-Drop the following PNGs here (referenced by the root `README.md`). Capture them from a live local run at http://localhost:3000/analyze:
+Product screenshots referenced by the root `README.md`. Captured from a live run at http://localhost:3000/analyze.
 
-| File | What to capture |
-|------|-----------------|
-| `score-card.png` | The main ATS score card (overall score + breakdown) after an Analyze run |
-| `keyword-map.png` | The keyword highlight map showing matched vs missing JD terms |
-| `before-after.png` | Before/after score delta after an inline edit or AI rewrite |
-| `parsed-view.png` | The Parsed ATS view (sections, contact, skills) |
-
-Recommended width ~1200–1600px, cropped to the relevant panel. Optional: add a `demo.gif` and reference it at the top of the README.
+| File | What it shows |
+|------|----------------|
+| `landing.png` | Landing page — hero + feature cards |
+| `upload-configure.png` | Analyze page — resume + JD upload |
+| `sign-in.png` | Sign-in modal with dimmed backdrop |
+| `profile-history.png` | Signed-in — master profile & history panel |
+| `score-card.png` | ATS score gauge, Layer 1 + Layer 2 breakdown, top fixes |
+| `keyword-map.png` | Keyword match %, missing JD terms, keyword map in resume |
+| `parsed-view.png` | What the ATS extracted + Layer 1 hygiene checks |
+| `ai-rewrite.png` | AI suggestions — before/after comparison + change log |
+| `download.png` | Export section — DOCX, PDF, TeX |

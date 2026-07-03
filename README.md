@@ -12,15 +12,27 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 
 ## Screenshots
 
-**Landing**
+**Landing → Analyze workflow**
 
 ![Landing page](docs/landing.png)
 
-| Upload & Configure | Signed-in profile & history |
+| Upload & Configure | Sign in |
 |:---:|:---:|
-| ![Upload and configure](docs/upload-configure.png) | ![Profile and history](docs/profile-history.png) |
+| ![Upload and configure](docs/upload-configure.png) | ![Sign in modal](docs/sign-in.png) |
 
-> Screenshots live in `docs/`. The analysis views (score card, keyword map, before/after, parsed view) are best captured from a live run at http://localhost:3000/analyze — see `docs/README.md` for the shot list.
+| Signed-in profile & history | ATS score (2-layer) |
+|:---:|:---:|
+| ![Profile and history](docs/profile-history.png) | ![ATS score card](docs/score-card.png) |
+
+| Keyword map & gaps | Parsed ATS view |
+|:---:|:---:|
+| ![Keyword map](docs/keyword-map.png) | ![Parsed ATS view](docs/parsed-view.png) |
+
+| AI rewrite (before / after) | Multi-format export |
+|:---:|:---:|
+| ![AI rewrite comparison](docs/ai-rewrite.png) | ![Download DOCX PDF TeX](docs/download.png) |
+
+> All screenshots from a live local run at http://localhost:3000/analyze. See `docs/README.md` for the full file list.
 
 ---
 
