@@ -681,8 +681,31 @@ def _jd_skill_extraction_text(text: str) -> str:
     return text
 
 
+_GO_TECH_CONTEXT = re.compile(
+    r"(?:golang|go\s+lang(?:uage)?|go\s+programming|go\s+developer|"
+    r"go\s+engineer|backend\s+go|"
+    r"(?:^|[,:|/(\[]\s*)go(?:\s*[,|/)\]]|\s*$))",
+    re.IGNORECASE | re.MULTILINE,
+)
+_MAKE_TECH_CONTEXT = re.compile(
+    r"(?:makefile|gnu\s+make|cmake|"
+    r"(?:^|[,:|/(\[]\s*)make(?:\s*[,|/)\]]|\s*$))",
+    re.IGNORECASE | re.MULTILINE,
+)
+_MAKE_VERB_CONTEXT = re.compile(
+    r"\bmake\s+(?:an?\s+|the\s+|sure\b|it\b|this\b|that\b|dashboards?\b|"
+    r"decisions?\b|impact\b|progress\b|changes?\b)",
+    re.IGNORECASE,
+)
+_GO_VERB_CONTEXT = re.compile(
+    r"\bgo\s+(?:beyond|to|through|ahead|forward|live|remote|home|"
+    r"the\s+extra)",
+    re.IGNORECASE,
+)
+
+
 def _sanitize_jd_skills(source_text: str, skills: list[str]) -> list[str]:
-    """Drop known taxonomy false positives from corporate boilerplate."""
+    """Drop known taxonomy false positives from corporate boilerplate / English verbs."""
     cleaned: list[str] = []
     for skill in skills:
         if skill == "Kong" and re.search(r"Hong\s+Kong", source_text, re.IGNORECASE):
@@ -691,6 +714,22 @@ def _sanitize_jd_skills(source_text: str, skills: list[str]) -> list[str]:
             r"server,\s*storage,\s*edge", source_text, re.IGNORECASE
         ):
             continue
+        # "Go" / "Make" are common English verbs — keep only with tech context.
+        if skill == "Go":
+            if _GO_VERB_CONTEXT.search(source_text) and not _GO_TECH_CONTEXT.search(
+                source_text
+            ):
+                continue
+            if not _GO_TECH_CONTEXT.search(source_text):
+                # Bare "go" with no tech signal → drop
+                continue
+        if skill == "Make":
+            if _MAKE_VERB_CONTEXT.search(source_text) and not _MAKE_TECH_CONTEXT.search(
+                source_text
+            ):
+                continue
+            if not _MAKE_TECH_CONTEXT.search(source_text):
+                continue
         cleaned.append(skill)
     return cleaned
 
