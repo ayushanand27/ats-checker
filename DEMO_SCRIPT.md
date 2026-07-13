@@ -1,160 +1,118 @@
-# ResumeMatch — Demo Shoot Script (final)
+# ResumeMatch — Silent Demo Shoot Guide (no audio)
 
-**Status (verified just now):** API + frontend UP · e2e **0 failures** · auth/profile **passed**  
-**Only known limit:** PDF export may fail on Windows → **use DOCX in the demo**
+**Why silent:** Scores and AI text change each run. Don’t narrate exact numbers — show the **product flow** with short on-screen captions (or add voice later in CapCut/Premiere).
 
-| Open now | Link |
-|----------|------|
-| **Analyze (main)** | http://localhost:3000/analyze |
+**Verified live:** API + frontend UP · use **DOCX** (not PDF on Windows)
+
+| Open | Link |
+|------|------|
 | Landing | http://localhost:3000 |
-| API docs (optional) | http://localhost:8000/docs |
-| GitHub | https://github.com/ayushanand27/ats-checker |
+| Analyze | http://localhost:3000/analyze |
+| GitHub (end card) | https://github.com/ayushanand27/ats-checker |
 
 ---
 
-## Before you hit Record (60 sec)
+## Before Record
 
-1. Open **http://localhost:3000/analyze**
-2. Click **Clear this data** (page bottom)
-3. Ready files:
-   - Your **resume PDF**
-   - A **matching JD** (Python / SQL / data / automation skills) — so Layer 2 looks strong on camera
-4. Browser zoom **100%**, window fullscreen
-5. Already **signed in** (optional but nicer) — or sign in during Step 7
-
-**Do NOT use a totally unrelated JD for the main take** (that gives a low score and looks confusing on camera).
+1. http://localhost:3000/analyze → **Clear this data**
+2. Resume PDF + **matching JD** ready (so the score looks strong)
+3. Zoom 100%, fullscreen, mouse cursor visible
+4. Optional: already signed in
+5. Screen recorder: 1080p, 30fps
 
 ---
 
-## What you will see (so you don’t panic)
+## How to shoot (silent)
 
-| Moment | Expected | Say this if asked |
-|--------|----------|-------------------|
-| No JD | “Structure Health” ~90+, not “ATS Match” | “Without a JD there is no real ATS match score.” |
-| Matching JD | High score (often **80–97**) | “Strong skill alignment.” |
-| Unrelated JD | Low/mid score | “Honest — resume doesn’t match this role.” |
-| After AI | Score may move only a little | “Already close; it won’t invent fake skills.” |
-| Download | **DOCX works**; PDF may fail on Windows | Click DOCX only. |
+- **Hold each screen 3–5 seconds** so viewers can read
+- **Move mouse slowly** to the thing you want them to notice
+- **Don’t rush Analyze / AI** — wait for results fully
+- Add **text captions later** (or OBS text overlays) — lines below are caption-ready
 
 ---
 
-## RECORD — 8 steps (~3.5 min)
+## SHOT LIST (≈3 min)
 
-### STEP 1 — Intro (10s)
+### Shot 1 — Landing (8s)
 **Open:** http://localhost:3000  
+**Show:** brand + headline + 4 feature cards  
+**Caption:**  
+`ResumeMatch — ATS score · AI rewrite · PDF/DOCX/LaTeX`  
+**Click:** Get Started
 
-**Say:**  
-> “This is ResumeMatch — an ATS resume checker I built. It scores your resume against a job description, suggests AI rewrites, and exports DOCX, PDF, and LaTeX.”
+### Shot 2 — Upload (15s)
+**Show:** resume drop + JD upload  
+**Do:** drop resume → drop JD → briefly show Paste / URL tabs  
+**Caption:**  
+`Upload resume + job description (paste · file · URL)`  
+**Click:** Analyze Resume → wait
 
-**Click:** **Get Started**
+### Shot 3 — Score (20s) ⭐
+**Show:** gauge + Layer 1 + Layer 2  
+**Mouse:** point overall → L1 → L2  
+**Caption:**  
+`2-layer ATS score — structure (35%) + skill match (65%)`  
+*(Don’t caption the exact number — it will vary.)*
 
----
+### Shot 4 — Fixes + keywords (15s)
+**Scroll:** Top fixes → Missing keywords → Keyword map  
+**Caption:**  
+`Prioritized fixes + missing JD keywords`
 
-### STEP 2 — Upload (30s)
-**Page:** http://localhost:3000/analyze  
-
-**Say:**  
-> “Upload the resume, then the job description — paste, file, or URL.”
-
-**Do:**
-1. Drop **resume**
-2. JD tab → **Upload file** → drop **matching JD**
-3. Quickly show **Paste** and **From URL** tabs
-4. Click **Analyze Resume**
-5. Wait for the gauge
-
----
-
-### STEP 3 — Score (40s) ⭐
-**Look at:** big gauge + Layer 1 / Layer 2  
-
-**Say:**  
-> “Here’s the ATS match score. Layer 1 is structure and parse health. Layer 2 is skill match against the JD. Weighted 35% structure and 65% skills — how real ATS systems think.”
-
-**Point:** overall score → Layer 1 → Layer 2  
-
-**If score is high:**  
-> “Strong match for this role.”
-
----
-
-### STEP 4 — Fixes + keywords (30s)
-**Scroll:** Top fixes → Keyword match  
-
-**Say:**  
-> “Prioritized fixes first, then exact missing JD keywords and where they appear in the resume.”
-
-**Point:** fix #1 → Missing keywords → Keyword map (quick scroll)
-
----
-
-### STEP 5 — Parsed ATS view (20s)
+### Shot 5 — Parsed ATS view (12s)
 **Scroll:** What the ATS extracted  
+**Mouse:** name → skills → experience  
+**Caption:**  
+`What the ATS extracts — catch parse issues early`
 
-**Say:**  
-> “This is what an ATS extracts — name, contact, skills, experience. Catch parse issues before a recruiter’s system does.”
+### Shot 6 — AI rewrite (25s) ⭐
+**Click:** Get AI Suggestions → wait  
+**Show:** What changed → Before/After score → before/after text  
+**Caption:**  
+`AI rewrite (Groq) — review changes · auto re-score · no fabricated experience`
 
-**Point:** Name → Skills → Experience  
+### Shot 7 — Profile (12s)
+**Show:** signed-in email + Save profile / Generate from profile  
+**Caption:**  
+`Save master profile · tailor to any JD later`
 
-*(Optional 5s: glance at Layer 1 green checks.)*
-
----
-
-### STEP 6 — AI rewrite (45s) ⭐
-**Scroll:** 03 · AI Suggestions  
-
-**Say:**  
-> “One Groq call — before and after, a change log, then auto re-score. It never fabricates experience.”
-
-**Do:**
-1. Click **Get AI Suggestions**
-2. Wait for success banner
-3. Point **What changed**
-4. Point **Before → After** score
-5. Quick scroll of before/after text
-
----
-
-### STEP 7 — Profile (25s)
-**Top right / profile card**  
-
-**Say:**  
-> “Sign in, save a master profile once, then generate a tailored resume from any new JD.”
-
-**Do:**
-1. Show you’re signed in (or Sign in)
-2. Click **Save current resume as my profile** (or point at it)
-3. Point **Generate from my profile**
+### Shot 8 — Export + end (12s)
+**Check:** DOCX only → Preview & Download  
+**Caption:**  
+`Export DOCX / PDF / TeX`  
+**End card (3s):**  
+`github.com/ayushanand27/ats-checker`  
+optional: open GitHub tab for 2s
 
 ---
 
-### STEP 8 — Download + end (20s)
-**Scroll:** 04 · Download  
+## Caption pack (copy into editor)
 
-**Say:**  
-> “Export DOCX from the same structured data. That’s ResumeMatch — local ATS scoring, AI rewrite, multi-format export. Code is on GitHub.”
-
-**Do:**
-1. Check **DOCX only** (skip PDF on Windows)
-2. Click **Preview & Download**
-3. End — say: `github.com/ayushanand27/ats-checker`
-
----
-
-## One-line cheat sheet (keep this on a second screen)
-
-`Landing → Get Started → Upload resume+JD → Analyze → Score L1/L2 → Fixes/Keywords → Parsed view → AI Suggestions → Save profile → DOCX download → GitHub`
+1. `ResumeMatch — ATS score · AI rewrite · multi-format export`
+2. `Upload resume + JD`
+3. `Structure + semantic skill matching`
+4. `Keyword gaps + prioritized fixes`
+5. `Parsed ATS view`
+6. `AI suggestions · before/after · auto re-score`
+7. `Accounts · master profile · history`
+8. `Export DOCX · github.com/ayushanand27/ats-checker`
 
 ---
 
-## If something goes wrong mid-recording
+## Editing tips (silent video)
 
-| Problem | Fix |
-|---------|-----|
-| Old score on screen | **Clear this data** → re-upload |
-| “Structure Health” only | You forgot JD — upload JD → Analyze again |
-| AI button errors | Check Groq key / wait 5s → retry once |
-| PDF fails | Use **DOCX** — say “DOCX export” |
-| Page blank | Refresh http://localhost:3000/analyze |
+| Tip | Why |
+|-----|-----|
+| Soft zoom on score gauge | Makes the “product” clear without talking |
+| Cut dead wait time (loading) | Keep pace under 3–4 min |
+| Never hardcode “Score: 97” in captions | Numbers change |
+| End on GitHub URL full-screen | Clear CTA |
+| Optional soft music, no voice | Fine for LinkedIn/X |
 
-You’re good to shoot.
+---
+
+## Cheat sheet
+
+`Landing → Upload → Analyze → Score → Fixes → Parsed → AI → Profile → DOCX → GitHub`
+
+You’re ready. Record silent, caption later.
