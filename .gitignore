@@ -30,6 +30,7 @@ Thumbs.db
 # Generated outputs (local testing)
 *.pdf
 !resume_scorer/templates/**/*.pdf
+!demo/*.pdf
 
 # Model cache (downloaded at runtime)
 .cache/
@@ -41,3 +42,7 @@ resume_scorer/data/
 
 # Docker
 *.log
+
+# Local setup markers / secrets
+resume_scorer/.models_ready
+resume_scorer/data/.jwt_secret

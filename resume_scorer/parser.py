@@ -59,13 +59,53 @@ def _page_text_column_ordered(page: fitz.Page) -> str:
     return "\n".join(ordered)
 
 
+# Bullet glyphs that PDF exporters emit, including Word's Symbol-font bullets
+# (U+F0B7, U+F0A7 …, private-use code points) that look like "•" on screen.
+_BULLET_GLYPHS = "\uf0b7\uf0a7\uf076\uf0d8\uf0fc\uf0e0\uf0a8\uf06e\uf0a1\u25e6\u2023\u2043\u2219\u00b7\u25cb\u25aa\u25ab\u25a0\u25a1\u27a2\u27a4\u2713\u2714\u25cf\u25b8\u25ba\u2022"
+_GLYPH_LINE_RE = re.compile(rf"^\s*[{_BULLET_GLYPHS}]\s*")
+_DATE_HINT_RE = re.compile(r"\b(?:19|20)\d{2}\b|\bpresent\b", re.I)
+
+
+def normalize_bullets(text: str) -> str:
+    """Make bullets parseable: unify glyphs to "• ", join a lone glyph with the
+    next line, and re-join bullet text that the PDF wrapped onto a new line."""
+    out: list[str] = []
+    pending_bullet = False
+    for raw_line in (text or "").splitlines():
+        line = raw_line.rstrip()
+        stripped = line.strip()
+        if _GLYPH_LINE_RE.match(line):
+            rest = _GLYPH_LINE_RE.sub("", line).strip()
+            if not rest:
+                pending_bullet = True
+                continue
+            out.append(f"\u2022 {rest}")
+            pending_bullet = False
+            continue
+        if pending_bullet and stripped:
+            out.append(f"\u2022 {stripped}")
+            pending_bullet = False
+            continue
+        prev = out[-1] if out else ""
+        if (
+            stripped
+            and prev.startswith("\u2022 ")
+            and (stripped[0].islower() or stripped[0] in "(&%")
+            and not _DATE_HINT_RE.search(stripped)
+        ):
+            out[-1] = f"{prev.rstrip()} {stripped}"
+            continue
+        out.append(line)
+    return "\n".join(out)
+
+
 def extract_text_from_pdf(data: bytes) -> str:
     doc = fitz.open(stream=data, filetype="pdf")
     parts: list[str] = []
     for page in doc:
         parts.append(_page_text_column_ordered(page))
     doc.close()
-    return "\n".join(parts).strip()
+    return normalize_bullets("\n".join(parts)).strip()
 
 
 def _configure_tesseract() -> bool:
@@ -132,7 +172,10 @@ def extract_text_from_docx(data: bytes) -> str:
     parts: list[str] = []
     for para in doc.paragraphs:
         if para.text.strip():
-            parts.append(para.text)
+            # Word list paragraphs (List Bullet style or numbering) carry no bullet
+            # character in their text — add one so bullets are detected.
+            is_list = "list" in (para.style.name or "").lower() or para._p.pPr is not None and para._p.pPr.numPr is not None
+            parts.append(f"\u2022 {para.text.strip()}" if is_list and not para.text.lstrip().startswith(("\u2022", "-", "*")) else para.text)
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
@@ -154,7 +197,7 @@ def extract_text(data: bytes, filename: str) -> str:
     if lower.endswith(".docx"):
         return extract_text_from_docx(data)
     if lower.endswith(".txt"):
-        return extract_text_from_txt(data)
+        return normalize_bullets(extract_text_from_txt(data))
     raise ValueError(f"Unsupported file type: {filename}")
 
 

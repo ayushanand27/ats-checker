@@ -1,0 +1,24 @@
+Data Analyst Intern
+
+Northwind Retail is a fictional company used for this demo.
+
+About the role
+We are looking for a Data Analyst Intern to join our analytics team in Bengaluru. You will turn sales and customer data into dashboards and insights that help store managers make decisions.
+
+Responsibilities
+- Write SQL queries to extract and clean sales, inventory and customer data
+- Build and maintain Power BI dashboards and weekly KPI reports for business teams
+- Analyse customer behaviour with Python (Pandas, NumPy) and present findings
+- Run A/B tests on promotions and measure their impact with statistical analysis
+- Automate recurring Excel reports and document data pipelines
+
+Requirements
+- Bachelor's degree in Computer Science, Statistics, or a related field
+- Strong SQL and Excel skills
+- Experience with Python and Pandas for data analysis
+- Experience with Power BI or Tableau for data visualization
+- Good communication skills
+
+Nice to have
+- Experience with Machine Learning or forecasting models
+- Familiarity with Git and cloud platforms such as AWS

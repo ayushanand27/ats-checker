@@ -1,0 +1,157 @@
+"""Unit tests for the v2 scoring improvements (run: python -m pytest -q)."""
+
+from __future__ import annotations
+
+from api.deps import compose_score, compose_score_detailed
+from insights.resume_normalize import normalize_resume_struct
+from scoring.content_quality import score_content_quality
+from scoring.evidence import EvidenceIndex, detect_stuffing
+from scoring.keyword_analysis import analyze_keywords
+from scoring.requirements_check import check_education, check_job_title, run_requirement_checks
+from scoring.semantic_match import score_semantic_match
+from structurer import structure_jd, structure_resume
+
+
+# ---------------------------------------------------------------- evidence rules
+def test_listed_skill_is_claim_and_sentence_is_evidence():
+    text = (
+        "Built ETL pipelines in Python and SQL on AWS, reducing cost by 30%.\n"
+        "Skills: Python, SQL, Tableau, Docker, Kubernetes"
+    )
+    ev = EvidenceIndex(text)
+    assert ev.status("Python") == "demonstrated"
+    assert ev.status("AWS") == "demonstrated"
+    assert ev.status("Tableau") == "listed_only"
+    assert ev.factor("Docker", lam=0.5) == 0.5
+    assert ev.factor("Python", lam=0.5) == 1.0
+    assert ev.status("Rust") == "unknown"
+
+
+def test_templated_sentences_count_as_list_but_duplicates_do_not():
+    text = (
+        "Built production features using Go. Built production features using Rust. "
+        "Created stored procedures in Oracle. Created stored procedures in Oracle."
+    )
+    ev = EvidenceIndex(text, skills=["Go", "Rust", "Oracle"])
+    assert ev.status("Rust") == "listed_only"
+    assert ev.status("Go") == "listed_only"
+    assert ev.status("Oracle") == "demonstrated"  # exact duplicate bullet is not a template
+
+
+def test_alias_mentions_count_as_evidence():
+    ev = EvidenceIndex("Trained ML models for churn prediction with 91% recall.")
+    assert ev.status("machine learning") == "demonstrated"
+
+
+# ---------------------------------------------------------------- keyword stuffing
+def _analyze(resume_text: str, jd_text: str):
+    resume = normalize_resume_struct(structure_resume(resume_text))
+    jd = structure_jd(jd_text)
+    return resume, jd, analyze_keywords(resume, jd)
+
+
+def test_pasted_jd_skill_list_is_discounted_and_flagged(ta_jd_text):
+    base = "Jane Doe\njane@example.com\nEXPERIENCE\n- Managed retail store inventory for 2 years\n"
+    jd = structure_jd(ta_jd_text)
+    stuffed = base + "SKILLS\n" + ", ".join(jd["all_skills"])
+    _, _, clean = _analyze(base, ta_jd_text)
+    _, _, kw = _analyze(stuffed, ta_jd_text)
+    assert kw["raw_keyword_score"] >= 90  # literal matching is fooled completely
+    assert kw["keyword_score"] <= 0.55 * kw["raw_keyword_score"] + 1  # evidence weighting halves it
+    assert kw["keyword_score"] > clean["keyword_score"]
+    assert kw["stuffing_warnings"], "a pasted JD skill list should raise a warning"
+    assert set(kw["listed_only"]) >= set(jd["required_skills"]) & {m["keyword"] for m in kw["matched_keywords"]}
+
+
+def test_lambda_zero_removes_stuffing_gain(monkeypatch, ta_jd_text):
+    monkeypatch.setenv("EVIDENCE_LIST_CREDIT", "0")
+    base = "Jane Doe\njane@example.com\nEXPERIENCE\n- Managed retail store inventory for 2 years\n"
+    jd = structure_jd(ta_jd_text)
+    _, _, clean = _analyze(base, ta_jd_text)
+    _, _, kw = _analyze(base + "SKILLS\n" + ", ".join(jd["all_skills"]), ta_jd_text)
+    assert kw["keyword_score"] == clean["keyword_score"] == 0.0
+
+
+def test_genuine_resume_keeps_most_credit(ta_resume_text, ta_jd_text):
+    _, _, kw = _analyze(ta_resume_text, ta_jd_text)
+    assert kw["keyword_score"] >= 0.75 * kw["raw_keyword_score"]
+    assert not kw["stuffing_warnings"]
+
+
+# ---------------------------------------------------------------- semantic layer
+def test_semantic_blocklist_and_partial_credit(stub_model):
+    model = stub_model(same={"Performance Testing": "Unit Testing", "jQuery": "JavaScript"})
+    resume = normalize_resume_struct({
+        "skills": ["Performance Testing", "jQuery"],
+        "experience": [{"title": "Dev", "bullets": [
+            "Ran performance testing on checkout APIs, cutting p95 latency 30%",
+            "Built jQuery widgets for the admin dashboard used by 40 staff",
+        ]}],
+    })
+    jd = {"required_skills": ["Unit Testing", "JavaScript"], "preferred_skills": [], "all_skills": []}
+    out = score_semantic_match(resume, jd, model)
+    assert out["missing_required"] == ["Unit Testing"]  # blocked false equivalence
+    assert out["matched_required"] == ["JavaScript"]  # jQuery implies JavaScript
+    detail = out["semantic_matches"][0]
+    assert detail["resume_skill"] == "jQuery" and detail["credit"] == 0.75
+    assert out["score"] == 37.5 and out["raw_score"] == 50.0
+
+
+def test_exact_match_gets_full_credit_when_demonstrated(stub_model):
+    resume = normalize_resume_struct({
+        "skills": ["Python", "SQL"],
+        "experience": [{"title": "Analyst", "bullets": ["Automated reports in Python and SQL, saving 6 hours a week"]}],
+    })
+    jd = {"required_skills": ["Python", "SQL"], "preferred_skills": [], "all_skills": []}
+    assert score_semantic_match(resume, jd, stub_model())["score"] == 100.0
+
+
+# ---------------------------------------------------------------- composite score
+def test_compose_modes():
+    full = compose_score_detailed(80, 60, True, 50)
+    assert full["mode"] == "full" and full["score"] == round(0.2 * 80 + 0.4 * 60 + 0.4 * 50, 1)
+    assert compose_score_detailed(80, None, True, 50)["mode"] == "structure_context"
+    assert compose_score_detailed(80, 60, True, None)["score"] == round(0.35 * 80 + 0.65 * 60, 1)
+    unmatched = compose_score_detailed(80, None, True, None)
+    assert unmatched["mode"] == "structure_only_jd_unmatched"
+    assert compose_score(80, None, False) == 80
+
+
+# ---------------------------------------------------------------- requirement checks
+def test_job_title_and_education_checks():
+    resume = {"raw_text": "Data Analyst Intern\nB.Tech in Computer Science", "education": [{"degree": "B.Tech in Computer Science"}]}
+    assert check_job_title(resume, {"title": "Data Analyst Intern"})["status"] == "pass"
+    assert check_job_title(resume, {"title": "Business Analyst"})["status"] in ("partial", "fail")
+    assert check_education(resume, {"raw_text": "Bachelor's degree in CS required"})["status"] == "pass"
+    assert check_education(resume, {"raw_text": "Master's degree required"})["status"] == "fail"
+
+
+def test_requirement_checks_need_a_jd():
+    assert run_requirement_checks({"raw_text": "x"}, None) == []
+
+
+# ---------------------------------------------------------------- writing quality
+def test_content_quality_flags_weak_writing():
+    weak = score_content_quality({"experience": [{"bullets": [
+        "Responsible for handling customer queries",
+        "I worked on the website as a team player",
+    ]}]})
+    strong = score_content_quality({"experience": [{"bullets": [
+        "Reduced ticket backlog 40% by automating triage in Python",
+        "Built a React dashboard used by 120 support agents",
+    ]}]})
+    assert strong["score"] > weak["score"]
+    failed = {c["name"] for c in weak["checks"] if not c["passed"]}
+    assert {"No first-person pronouns", "Bullets start with action verbs"} <= failed
+
+
+def test_detect_stuffing_needs_most_jd_skills_in_one_list():
+    skills = ["Python", "SQL", "Excel", "Power BI", "Tableau"]
+    assert detect_stuffing(EvidenceIndex("Skills: Python, SQL, Excel, Power BI, Tableau"), skills)
+    assert not detect_stuffing(EvidenceIndex("Skills: Python, Java"), skills)
+    genuine = (
+        "Built Power BI and Tableau dashboards from SQL views for 40 managers.\n"
+        "Automated Excel reports with Python, saving 6 hours a week.\n"
+        "Skills: Python, SQL, Excel, Power BI, Tableau"
+    )
+    assert not detect_stuffing(EvidenceIndex(genuine), skills)  # long list is fine when skills are used

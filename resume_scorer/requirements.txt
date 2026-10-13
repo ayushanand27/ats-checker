@@ -14,6 +14,7 @@ PyJWT==2.13.0
 langfuse==2.60.10
 pytesseract==0.3.13
 Pillow==11.1.0
-torch==2.6.0
-torchvision==0.21.0
+# CPU build is enough (scripts install it from the PyTorch CPU index first).
+# torchvision is not needed; leaving it out avoids torch/torchvision version mismatches.
+torch>=2.6,<3
 transformers==4.49.0

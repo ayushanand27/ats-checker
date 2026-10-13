@@ -67,9 +67,8 @@ def load_embedding_model():
     except Exception as exc:
         raise RuntimeError(
             "Could not load the local embedding model (sentence-transformers). "
-            "This is usually a torch/torchvision version mismatch. "
-            "In the project folder run: pip install -r requirements.txt "
-            "(pins torch==2.6.0 and torchvision==0.21.0). "
+            "This is usually a broken torch install or a torch/torchvision mismatch. "
+            "In the project folder run: pip uninstall torchvision, then pip install -r requirements.txt. "
             "Using a virtual environment is strongly recommended on Windows. "
             f"Original error: {exc}"
         ) from exc

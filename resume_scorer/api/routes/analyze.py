@@ -32,8 +32,11 @@ async def analyze_structured(body: AnalyzeStructuredRequest) -> AnalyzeResponse:
         "editor": "Edited in browser — verify facts before exporting.",
         "rescore": None,
     }
+    # Edited / chat-built resumes: the struct is the source of truth, so drop any
+    # stale original text carried over from a previous upload.
+    struct = {k: v for k, v in body.resume_struct.items() if k != "source_text"}
     return run_analysis(
-        resume_struct=body.resume_struct,
+        resume_struct=struct,
         jd_raw=body.jd_text,
         template=body.template,
         parse_warning=warnings.get(body.source),
@@ -98,6 +101,9 @@ async def analyze(
     if resume.filename.lower().endswith(".docx"):
         parse_flags["docx_tables"] = docx_has_tables(resume_bytes)
     resume_struct["parse_flags"] = parse_flags
+    # Keep the original extracted text: evidence and contextual checks read it,
+    # because the normalised re-rendering only contains what the parser understood.
+    resume_struct["source_text"] = resume_raw
 
     return run_analysis(
         resume_struct=resume_struct,

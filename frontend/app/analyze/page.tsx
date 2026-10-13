@@ -7,6 +7,10 @@ import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ProfilePanel } from "@/components/auth/ProfilePanel";
 import { BeforeAfter } from "@/components/analyze/BeforeAfter";
 import { CheckGrid } from "@/components/analyze/CheckGrid";
+import { ContextualPanel } from "@/components/analyze/ContextualPanel";
+import { EvidencePanel } from "@/components/analyze/EvidencePanel";
+import { RequirementsPanel } from "@/components/analyze/RequirementsPanel";
+import { ScoreBreakdownPanel } from "@/components/analyze/ScoreBreakdownPanel";
 import { FileDropzone } from "@/components/analyze/FileDropzone";
 import { JdInput } from "@/components/analyze/JdInput";
 import { KeywordAnalysisPanel } from "@/components/analyze/KeywordAnalysisPanel";
@@ -332,8 +336,9 @@ export default function AnalyzePage() {
     }
   };
 
+  const mode = result?.score_breakdown?.mode;
   const scoreLabel =
-    result?.layer2 != null
+    result?.layer2 != null || mode === "structure_context"
       ? "ATS Match Score"
       : result?.jd_provided
         ? "ATS Structure Score"
@@ -342,7 +347,7 @@ export default function AnalyzePage() {
     result?.score_band ||
     (result && !result.jd_provided
       ? "Structure/parse health only — not an ATS match score. Add a job description to score how well you match a specific role."
-      : result?.jd_provided && !result.layer2
+      : result?.jd_provided && !result.layer2 && mode !== "structure_context"
         ? "Skill match not applicable — JD has no extractable skills. Score reflects structure only."
         : undefined);
 
@@ -581,7 +586,7 @@ export default function AnalyzePage() {
               <StepLabel
                 step={2}
                 title="ATS Score"
-                subtitle="Two-layer analysis — structure + skill alignment"
+                subtitle="Three-layer analysis — structure, evidence-weighted skills, contextual fit"
                 active
               />
 
@@ -615,6 +620,10 @@ export default function AnalyzePage() {
                       )}
                     </div>
                     <div className="flex flex-col justify-center gap-5 border-t border-border pt-5 md:border-l md:border-t-0 md:pl-6 md:pt-0">
+                      {result.score_breakdown ? (
+                        <ScoreBreakdownPanel result={result} />
+                      ) : (
+                      <>
                       <div>
                         <p className="text-xs uppercase tracking-wider text-text-muted">
                           Layer 1 — Structure
@@ -644,12 +653,16 @@ export default function AnalyzePage() {
                           </p>
                         </div>
                       ) : null}
+                      </>
+                      )}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <TopFixes fixes={result.top_fixes ?? []} />
+
+              {result.jd_provided && <EvidencePanel result={result} />}
 
               {beforeScore != null && beforeScore !== result.core_score && (
                 <ScoreComparison before={beforeScore} after={result.core_score} />
@@ -663,6 +676,12 @@ export default function AnalyzePage() {
 
               {result.keyword_analysis && (
                 <KeywordAnalysisPanel analysis={result.keyword_analysis} />
+              )}
+
+              {result.contextual && <ContextualPanel ctx={result.contextual} />}
+
+              {!!result.requirements_checks?.length && (
+                <RequirementsPanel checks={result.requirements_checks} />
               )}
 
               {result.resume_struct.raw_text && result.jd_provided && (
@@ -693,6 +712,22 @@ export default function AnalyzePage() {
                     ATS formatting compatibility
                   </h3>
                   <CheckGrid checks={result.layer1.formatting_checks} />
+                </div>
+              )}
+
+              {!!result.content_quality?.checks?.length && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-medium text-text">
+                    Writing quality
+                    <span className="ml-2 tabular-nums text-text-muted">
+                      {result.content_quality.score}/100
+                    </span>
+                  </h3>
+                  <p className="text-xs text-text-muted">
+                    What a recruiter notices once the ATS lets you through: action verbs, no duty phrases or
+                    pronouns, no clichés, concise bullets. Shown separately; not part of the ATS score.
+                  </p>
+                  <CheckGrid checks={result.content_quality.checks} />
                 </div>
               )}
 
