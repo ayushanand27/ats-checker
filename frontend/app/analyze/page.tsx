@@ -480,7 +480,7 @@ export default function AnalyzePage() {
                     <CardDescription className="mt-0.5">
                       {isChatMode
                         ? "Required for chat — questions are tailored to this role"
-                        : "Optional — enables tailored Layer 2 skill matching"}
+                        : "Optional — enables skill-evidence and contextual matching"}
                     </CardDescription>
                   </div>
                   <label className="flex shrink-0 cursor-pointer items-center gap-2 text-xs text-text-muted">
@@ -597,7 +597,7 @@ export default function AnalyzePage() {
                     No job description provided, so this is a parse/structure health
                     score — <strong>not an ATS match score</strong>. Real ATS scores are
                     always relative to a specific job. Add a JD above to see how well you
-                    match a role (Layer 2 skill matching).
+                    match a role (skill evidence + contextual fit).
                   </AlertDescription>
                 </Alert>
               )}
@@ -907,7 +907,7 @@ export default function AnalyzePage() {
         )}
 
         <footer className="border-t border-border pt-6 text-[11px] leading-relaxed text-text-muted">
-          ATS Compatibility Score uses industry-weighted structure (35%) + semantic skill match (65%).
+          ATS Match Score = structure (20%) + evidence-weighted skill match (40%) + contextual fit (40%), all computed locally.
           Keyword placement and density follow Workday/Taleo-style exact-match guidance.
           AI suggestions are optional and never fabricate experience.
           <button

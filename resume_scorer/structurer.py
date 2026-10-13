@@ -52,6 +52,8 @@ EMAIL_RE = re.compile(
     re.IGNORECASE,
 )
 PHONE_RE = re.compile(
+    # Indian mobile numbers first (+91 98765 43210, +91-98765-43210, 9876543210)
+    r"(?:\+?91[\s\-]?)?[6-9]\d{4}[\s\-]?\d{5}(?!\d)|"
     r"(?:\+?\d{1,3}[\s\-]?)?"
     r"(?:\(?\d{2,4}\)?[\s\-]?)?"
     r"\d{3,4}[\s\-]?\d{3,4}(?:[\s\-]?\d{2,4})?",

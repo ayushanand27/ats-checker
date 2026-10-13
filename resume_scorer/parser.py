@@ -275,6 +275,7 @@ def guess_name_from_pdf(data: bytes) -> Optional[str]:
                         "text": text,
                         "size": float(span.get("size", 0)),
                         "x0": float(span["bbox"][0]),
+                        "x1": float(span["bbox"][2]),
                         "y": float(y),
                     })
     finally:
@@ -291,4 +292,13 @@ def guess_name_from_pdf(data: bytes) -> Optional[str]:
 
     best_y = max(by_line, key=lambda y: max(c["size"] for c in by_line[y]))
     line_spans = sorted(by_line[best_y], key=lambda c: c["x0"])
-    return " ".join(str(c["text"]) for c in line_spans).strip() or None
+    # Letter-spaced headings split one word into several spans ("Ri" "y" "a");
+    # insert a space only where the visual gap looks like a real word gap.
+    out = ""
+    for prev, cur in zip([None] + line_spans[:-1], line_spans):
+        if prev is None:
+            out = str(cur["text"])
+            continue
+        gap = float(cur["x0"]) - float(prev.get("x1", prev["x0"]))
+        out += (" " if gap > 0.18 * float(cur["size"]) else "") + str(cur["text"])
+    return " ".join(out.split()) or None
