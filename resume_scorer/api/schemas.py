@@ -39,6 +39,38 @@ class Layer2Result(BaseModel):
     matched_preferred: list[str]
     missing_preferred: list[str]
     experience_note: Optional[str] = None
+    raw_score: Optional[float] = None
+    match_details: list[dict[str, Any]] = Field(default_factory=list)
+    listed_only: list[str] = Field(default_factory=list)
+    semantic_matches: list[dict[str, Any]] = Field(default_factory=list)
+    list_credit: Optional[float] = None
+
+
+class ContextualResult(BaseModel):
+    score: float
+    cosine: float
+    chunks: int
+    best_chunk_preview: str = ""
+    verdict: str = ""
+    model: str = ""
+
+
+class ScoreBreakdown(BaseModel):
+    mode: str
+    weights: dict[str, float] = Field(default_factory=dict)
+    components: dict[str, float] = Field(default_factory=dict)
+
+
+class RequirementCheck(BaseModel):
+    name: str
+    status: str
+    detail: str
+
+
+class ContentQuality(BaseModel):
+    score: float
+    checks: list[dict[str, Any]] = Field(default_factory=list)
+    bullets_analysed: int = 0
 
 
 class KeywordHighlight(BaseModel):
@@ -57,6 +89,10 @@ class KeywordAnalysis(BaseModel):
     highlights: list[KeywordHighlight] = Field(default_factory=list)
     total_jd_keywords: int = 0
     matched_count: int = 0
+    raw_keyword_score: Optional[float] = None
+    listed_only: list[str] = Field(default_factory=list)
+    list_credit: Optional[float] = None
+    stuffing_warnings: list[str] = Field(default_factory=list)
 
 
 class AnalyzeResponse(BaseModel):
@@ -72,6 +108,10 @@ class AnalyzeResponse(BaseModel):
     top_fixes: list[TopFix] = Field(default_factory=list)
     score_band: str = ""
     keyword_analysis: Optional[KeywordAnalysis] = None
+    contextual: Optional[ContextualResult] = None
+    score_breakdown: Optional[ScoreBreakdown] = None
+    requirements_checks: list[RequirementCheck] = Field(default_factory=list)
+    content_quality: Optional[ContentQuality] = None
 
 
 class JdUrlRequest(BaseModel):

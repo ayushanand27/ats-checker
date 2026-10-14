@@ -6,6 +6,50 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 
 > Core ATS scoring is **fully deterministic** (zero API calls for scoring). AI rewrite and resume-builder chat are **optional** Groq features. Document rendering is **100% template-based**.
 
+## What's new in v2 (Oct 2026)
+
+v2 came out of an audit of v1 on 1,759 publicly labelled resume–JD pairs ([dataset](https://huggingface.co/datasets/cnamuangtoun/resume-job-description-fit)). The audit showed that pasting the JD's skill list into any resume pushed the v1 score from 38 to 87.
+
+| Change | Why |
+|---|---|
+| **Evidence-weighted skills** (`scoring/evidence.py`) | A skill used in a bullet earns full credit. A skill that is only *listed* earns 50%. Pasted keyword lists and templated "Built X using Y." sentences are detected and flagged. |
+| **Layer 3: contextual fit** (`scoring/contextual_match.py`) | A local BGE-small model compares the *whole* resume with the *whole* JD, reading it in chunks so nothing is truncated. It was the strongest single signal in the audit. |
+| **New score formula** | With a JD: 20% structure + 40% skills + 40% context. If the JD has no recognisable skills, the score now uses structure + context. v1 silently showed the structure score instead. |
+| **Smarter semantic matching** | Embedding-only matches get 75% credit. A blocklist removes false equivalences found in the audit (CSS≠HTML, Unit≠Performance Testing, "Machine Learning" does not prove "Deep Learning"). |
+| **JD requirement checks** (`scoring/requirements_check.py`) | Exact job title, degree level, years of experience, and acronyms written in both forms. These are the searchability checks commercial scanners run. |
+| **Writing quality** (`scoring/content_quality.py`) | Action verbs, weak duty phrases ("responsible for"), first-person pronouns, clichés, bullet length. |
+| **Parser fixes** (`parser.py`) | Word bullets exported to PDF as Symbol-font glyphs (U+F0B7) and DOCX list paragraphs are now detected, and wrapped bullet lines are re-joined. Before this, most Word-made resumes showed zero bullets. |
+| **Bigger skill vocabulary** | 36 new taxonomy skills and 25 new alias groups (React/React.js, Postgres, GenAI, DSA, …). |
+| **Safer auth default** | No more public fallback JWT secret: a random secret is generated once and stored next to the local DB. |
+| **Tests + evaluation** | `pytest` suite (17 tests, offline, about 3 s) and `scripts/evaluate_dataset.py` to reproduce the numbers below. |
+| **One-click run** | `setup_windows.bat` / `start_windows.bat` (and `setup.sh` / `start.sh`), plus demo files in `demo/`. |
+
+**Measured on the 1,759-pair public test set** (`docs/eval_results_v2.json`):
+
+| Metric | v1 | v2 |
+|---|---|---|
+| ROC-AUC, fit vs. no fit (all pairs) | 0.542 | **0.610** |
+| ROC-AUC within the same JD | 0.626 | **0.699** |
+| Ranking: MRR, true resume vs. 9 others | 0.443 | **0.490** |
+| Ranking: Hit@1 | 0.243 | **0.292** |
+| Avg. score of a No-Fit resume after pasting the JD skill list | 37.7 → 86.8 | 39.8 → **56.4** |
+| Stuffed No-Fit resumes reaching the median Good-Fit score | 100% | **84%** |
+
+The ranking metrics use expected values under random tie-breaking, because keyword scores tie often. Labels come from a public dataset of unknown provenance, so treat the absolute numbers as indicative.
+
+---
+
+## Run it on Windows in two clicks
+
+1. Install **Python 3.12** and **Node.js LTS** once, if you don't have them:
+   `winget install -e --id Python.Python.3.12` and `winget install -e --id OpenJS.NodeJS.LTS`
+2. Double-click **`setup_windows.bat`**. It runs once and takes about 10 minutes. It creates the venv, installs CPU-only PyTorch and the backend packages, downloads the two local models, runs the tests, and builds the frontend.
+3. Double-click **`start_windows.bat`**. It opens the API and web app windows, warms up the models, and opens http://localhost:3000/analyze.
+
+To try it, upload `demo/resume_strong_riya.pdf`, paste `demo/jd_data_analyst.txt`, and click **Analyze**. Then do the same with `demo/resume_stuffed_aman.pdf`. Both resumes list the same skills and score the same on plain keyword matching, but v2 rates them 84 vs 42 and flags the pasted keyword list.
+
+macOS/Linux: `./setup.sh` once, then `./start.sh`.
+
 **Primary UI:** Next.js app in `frontend/` (`npm run dev` → http://localhost:3000/analyze). Legacy Streamlit UI remains in `resume_scorer/app.py`.
 
 ---
@@ -38,7 +82,10 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 
 ## Features
 
-- **Industry-standard ATS scoring** — structure (35%) + semantic skill match (65%); keyword placement in summary/skills/experience; density warnings for stuffing
+- **Three-layer ATS scoring (v2)** — structure (20%) + evidence-weighted skill match (40%) + contextual fit (40%); keyword placement in summary/skills/experience; stuffing detection
+- **Skill evidence check** — each JD skill is shown as *demonstrated* (used in a bullet) or *listed only*, with its credit
+- **JD requirement checks** — job title, degree level, years of experience, acronyms in both forms
+- **Writing quality** — action verbs, weak phrases, pronouns, clichés, bullet length
 - **Keyword highlight map** — see which JD terms appear in your resume text (exact + synonym at 0.8 weight, Workday/Taleo-style)
 - **Parsed ATS view** — how an ATS likely reads your sections, contact, and skills
 - **Formatting compatibility** — single-column, tables, headers/footers, file-type checks
@@ -126,13 +173,15 @@ Content generation and document rendering are **fully separated** — the same p
 | Structure extraction | `structurer.py` | **Zero** |
 | Layer 1 — hygiene + formatting | `scoring/deterministic.py`, `formatting.py` | **Zero** |
 | Keyword analysis | `scoring/keyword_analysis.py` | **Zero** |
-| Layer 2 — skill match | `scoring/semantic_match.py` | **Zero** (local `all-MiniLM-L6-v2`) |
+| Layer 2 — skill match | `scoring/semantic_match.py`, `evidence.py` | **Zero** (local `all-MiniLM-L6-v2`) |
+| Layer 3 — contextual fit | `scoring/contextual_match.py` | **Zero** (local `BAAI/bge-small-en-v1.5`) |
+| Requirement + writing checks | `scoring/requirements_check.py`, `content_quality.py` | **Zero** |
 | AI rewriter | `insights/llm_rewriter.py` | **One** (opt-in button) |
 | Accounts / profiles / history | `api/db.py`, `api/auth.py`, `api/routes/{auth,profile}.py` | **Zero** (local SQLite + JWT) |
 | LLM tracing | `insights/tracing.py` | **Zero** (async to Langfuse, opt-in) |
 | PDF / DOCX / TeX | `renderers/` | **Zero** |
 
-**Score weights:** With JD → Layer 1 (35%) + Layer 2 (65%). Without JD → Layer 1 only (general ATS check).
+**Score weights (v2):** With a JD → Structure 20% + Skill match 40% + Contextual fit 40%. JD with no recognisable skills → Structure 40% + Context 60%. Without a JD → structure only (general ATS check). If the contextual model is disabled (`SKIP_CONTEXT=1`) the v1 formula (35/65) is used.
 
 ### User accounts & JD tailoring
 
@@ -220,6 +269,9 @@ Access at `http://<EC2-public-ip>:8501`.
 
 ```
 ats-checker/
+├── setup_windows.bat / start_windows.bat   # one-click local run
+├── demo/                           # demo JD + two demo resumes
+├── docs/eval_results_v2.json       # evaluation numbers
 ├── frontend/                       # Next.js 14 UI (primary)
 │   └── app/analyze/page.tsx
 └── resume_scorer/
@@ -233,7 +285,11 @@ ats-checker/
     ├── structurer.py
     ├── scoring/
     │   ├── deterministic.py
-    │   ├── semantic_match.py
+    │   ├── semantic_match.py       # Layer 2 (exact/alias/embedding + evidence)
+    │   ├── evidence.py             # evidence-weighted credit + stuffing detection
+    │   ├── contextual_match.py     # Layer 3 (BGE-small, chunked)
+    │   ├── requirements_check.py   # title / degree / experience / acronyms
+    │   ├── content_quality.py      # writing-quality checks
     │   ├── keyword_analysis.py
     │   ├── formatting.py
     │   └── fix_suggestions.py
@@ -241,7 +297,9 @@ ats-checker/
     │   ├── llm_rewriter.py
     │   ├── resume_chat.py
     │   └── tracing.py              # Langfuse (optional, no-op if unset)
+    ├── tests/                      # pytest suite (offline, stub models)
     ├── scripts/
+    │   ├── evaluate_dataset.py     # v1 vs v2 on the public labelled dataset
     │   ├── langfuse_smoke.py       # verify Langfuse connection
     │   └── test_auth_profile.py    # auth + profile + tailor + history test
     ├── templates/
@@ -257,13 +315,16 @@ ats-checker/
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GROQ_API_KEY` | No | Enables AI rewrite, chat, and JD tailoring. Get one at [console.groq.com](https://console.groq.com). |
-| `JWT_SECRET` | Prod | Signs user session tokens. Use a long random string in production (dev has a fallback). |
+| `JWT_SECRET` | Prod | Signs user session tokens. Use a long random string in production (locally a random secret is generated once and kept in `resume_scorer/data/`). |
 | `RESUMEMATCH_DB` | No | Path to the SQLite DB for accounts/profiles/history. Point to a persistent volume in production. |
 | `LANGFUSE_PUBLIC_KEY` | No | Enables LLM tracing. From [cloud.langfuse.com](https://cloud.langfuse.com) → Settings → API Keys. |
 | `LANGFUSE_SECRET_KEY` | No | Langfuse secret key (pairs with the public key). |
 | `LANGFUSE_BASE_URL` | No | Langfuse host, e.g. `https://cloud.langfuse.com`. |
 | `CORS_ORIGINS` | No | Comma-separated origins allowed to call the API (e.g. your Vercel URL). |
 | `SKIP_LAYER2` | No | Set to `1` on low-memory hosts to skip Layer 2 embeddings. |
+| `SKIP_CONTEXT` | No | Set to `1` to skip the Layer 3 contextual model (saves ~130 MB RAM). |
+| `CONTEXT_MODEL` | No | Override the contextual model (default `BAAI/bge-small-en-v1.5`). |
+| `EVIDENCE_LIST_CREDIT` | No | Credit for skills that are only listed, 0–1 (default `0.5`; `0` = listed skills earn nothing). |
 | `TESSERACT_CMD` | No | Path to `tesseract.exe` if not on PATH (Windows auto-detects Program Files). |
 
 Copy `resume_scorer/.env.example` to `.env` and fill in your keys. Core ATS scoring works without any of them.
@@ -271,6 +332,21 @@ Copy `resume_scorer/.env.example` to `.env` and fill in your keys. Core ATS scor
 ---
 
 ## Testing
+
+Unit and API tests run offline with a stub embedding model (about 3 seconds):
+
+```bash
+cd resume_scorer
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+Reproduce the v1-vs-v2 evaluation (about 10 minutes on CPU):
+
+```bash
+curl -L -o test.csv https://huggingface.co/datasets/cnamuangtoun/resume-job-description-fit/resolve/main/test.csv
+python scripts/evaluate_dataset.py --csv test.csv --out eval_results.json
+```
 
 An end-to-end script exercises signup → login → save profile → JD tailoring → history against a running API:
 
@@ -289,9 +365,9 @@ Verify the Langfuse connection separately with `python scripts/langfuse_smoke.py
 ## Tech stack
 
 - **Next.js 14** + **TypeScript** + **Tailwind** (primary UI)
-- **FastAPI** + **Python 3.11**
+- **FastAPI** + **Python 3.10–3.13**
 - **PyMuPDF** / **python-docx** / optional **pytesseract** (input parsing)
-- **sentence-transformers** (`all-MiniLM-L6-v2`) — local semantic matching
+- **sentence-transformers** (`all-MiniLM-L6-v2` for skills, `BAAI/bge-small-en-v1.5` for contextual fit) — local semantic matching
 - **Groq** (`llama-3.3-70b-versatile`) — optional chat + rewrite
 - **Jinja2** + **WeasyPrint** (PDF) + **python-docx** (DOCX) + **LaTeX templates**
 

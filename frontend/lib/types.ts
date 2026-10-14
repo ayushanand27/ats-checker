@@ -32,6 +32,17 @@ export interface TopFix {
   severity: string;
 }
 
+export type EvidenceStatus = "demonstrated" | "listed_only" | "unknown";
+
+export interface SkillMatchDetail {
+  jd_skill: string;
+  resume_skill: string;
+  via: "exact" | "alias" | "semantic";
+  similarity: number;
+  evidence: EvidenceStatus;
+  credit: number;
+}
+
 export interface Layer2Result {
   score: number;
   matched_required: string[];
@@ -39,6 +50,38 @@ export interface Layer2Result {
   matched_preferred: string[];
   missing_preferred: string[];
   experience_note: string | null;
+  raw_score?: number | null;
+  match_details?: SkillMatchDetail[];
+  listed_only?: string[];
+  semantic_matches?: SkillMatchDetail[];
+  list_credit?: number | null;
+}
+
+export interface ContextualResult {
+  score: number;
+  cosine: number;
+  chunks: number;
+  best_chunk_preview: string;
+  verdict: string;
+  model: string;
+}
+
+export interface ScoreBreakdown {
+  mode: "full" | "structure_skills" | "structure_context" | "structure_only" | "structure_only_jd_unmatched" | string;
+  weights: Record<string, number>;
+  components: Record<string, number>;
+}
+
+export interface RequirementCheck {
+  name: string;
+  status: "pass" | "partial" | "fail" | "unknown" | string;
+  detail: string;
+}
+
+export interface ContentQuality {
+  score: number;
+  checks: Layer1Check[];
+  bullets_analysed: number;
 }
 
 export interface ResumeContact {
@@ -102,6 +145,8 @@ export interface KeywordAnalysis {
     match_type: string;
     placements: string[];
     count: number;
+    evidence?: EvidenceStatus;
+    credit?: number;
   }[];
   missing_keywords: string[];
   placement_summary: Record<string, number>;
@@ -109,6 +154,10 @@ export interface KeywordAnalysis {
   highlights: { keyword: string; line: string | null; status: string }[];
   total_jd_keywords: number;
   matched_count: number;
+  raw_keyword_score?: number | null;
+  listed_only?: string[];
+  list_credit?: number | null;
+  stuffing_warnings?: string[];
 }
 
 export interface AnalyzeResponse {
@@ -124,6 +173,10 @@ export interface AnalyzeResponse {
   top_fixes?: TopFix[];
   score_band?: string;
   keyword_analysis?: KeywordAnalysis | null;
+  contextual?: ContextualResult | null;
+  score_breakdown?: ScoreBreakdown | null;
+  requirements_checks?: RequirementCheck[];
+  content_quality?: ContentQuality | null;
 }
 
 export interface RewriteRequest {

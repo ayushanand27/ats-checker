@@ -19,8 +19,12 @@ export function KeywordAnalysisPanel({ analysis }: KeywordAnalysisPanelProps) {
         </span>
       </h3>
       <p className="text-xs text-text-muted">
-        Industry ATS checkers weight keyword overlap ~30–40%. Exact JD terms score higher
-        than synonyms; placement in summary, skills, and experience bullets matters.
+        Literal ATS search view: exact JD terms score 100%, synonyms 80%. Skills that only appear in a
+        list earn reduced credit
+        {analysis.raw_keyword_score != null && analysis.raw_keyword_score !== analysis.keyword_score
+          ? ` (plain keyword match would be ${analysis.raw_keyword_score}%)`
+          : ""}
+        .
       </p>
 
       <div className="grid gap-3 sm:grid-cols-3">

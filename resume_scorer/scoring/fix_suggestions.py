@@ -26,10 +26,36 @@ def build_top_fixes(
     gaps: dict[str, Any],
     parse_warning: Optional[str],
     jd_provided: bool,
+    keyword_analysis: Optional[dict[str, Any]] = None,
+    requirements: Optional[list[dict[str, Any]]] = None,
+    content_quality: Optional[dict[str, Any]] = None,
 ) -> list[dict[str, Any]]:
-    """Return up to 7 prioritized fixes ordered by impact."""
+    """Return up to 8 prioritized fixes ordered by impact."""
     fixes: list[dict[str, Any]] = []
     p = 1
+
+    for warning in (keyword_analysis or {}).get("stuffing_warnings") or []:
+        fixes.append(_fix(p, "Possible keyword stuffing", warning, "high"))
+        p += 1
+
+    listed_only = (keyword_analysis or {}).get("listed_only") or []
+    if listed_only and jd_provided:
+        fixes.append(_fix(
+            p,
+            "Prove the skills you only list",
+            f"{', '.join(listed_only[:4])}{' and more' if len(listed_only) > 4 else ''} appear only in a skills list. "
+            "Add a project or experience bullet that shows each one in use to earn full credit.",
+            "high" if len(listed_only) >= 3 else "medium",
+        ))
+        p += 1
+
+    for req in requirements or []:
+        if req.get("status") == "fail" and req.get("name") != "Years of experience":
+            fixes.append(_fix(p, req["name"], req["detail"], "medium"))
+            p += 1
+        elif req.get("status") == "partial" and req.get("name") == "Acronyms in both forms":
+            fixes.append(_fix(p, "Write acronyms in both forms", req["detail"], "medium"))
+            p += 1
 
     if parse_warning:
         fixes.append(_fix(
@@ -104,7 +130,12 @@ def build_top_fixes(
         ))
         p += 1
 
-    if core_score < 80 and jd_provided and len(fixes) < 7:
+    for check in (content_quality or {}).get("checks") or []:
+        if not check.get("passed") and check.get("weight", 0) >= 15:
+            fixes.append(_fix(p, f"Writing: {check['name']}", check["reason"], "medium"))
+            p += 1
+
+    if core_score < 80 and jd_provided and len(fixes) < 8:
         fixes.append(_fix(
             p,
             "Tailor summary to the JD",
@@ -114,9 +145,9 @@ def build_top_fixes(
         p += 1
 
     fixes.sort(key=lambda f: (0 if f["severity"] == "high" else 1, f["priority"]))
-    for i, fix in enumerate(fixes[:7], start=1):
+    for i, fix in enumerate(fixes[:8], start=1):
         fix["priority"] = i
-    return fixes[:7]
+    return fixes[:8]
 
 
 def score_band_label(score: float, jd_provided: bool) -> str:

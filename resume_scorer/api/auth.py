@@ -24,12 +24,29 @@ _ALGO = "HS256"
 _TOKEN_TTL_HOURS = 24 * 14  # 2 weeks
 
 
+_SECRET_FILE = db.DB_PATH.parent / ".jwt_secret"
+
+
 def _jwt_secret() -> str:
     secret = os.getenv("JWT_SECRET", "").strip()
     if secret:
         return secret
-    # Dev fallback — stable per process so tokens survive reloads in one session.
-    return "dev-insecure-secret-change-me"
+    # No env secret: generate a random one once and keep it next to the local
+    # database (git-ignored), so tokens are never signed with a public default.
+    try:
+        if _SECRET_FILE.exists():
+            stored = _SECRET_FILE.read_text(encoding="utf-8").strip()
+            if stored:
+                return stored
+        _SECRET_FILE.parent.mkdir(parents=True, exist_ok=True)
+        generated = secrets.token_urlsafe(48)
+        _SECRET_FILE.write_text(generated, encoding="utf-8")
+        return generated
+    except OSError:
+        return _PROCESS_SECRET
+
+
+_PROCESS_SECRET = secrets.token_urlsafe(48)
 
 
 def hash_password(password: str) -> str:

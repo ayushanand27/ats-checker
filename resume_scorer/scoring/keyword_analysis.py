@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
+from scoring.evidence import EvidenceIndex, detect_stuffing, list_credit
 from scoring.skill_aliases import _build_lookup
 
 # Industry guidance: 1–3 natural uses per keyword; flag excessive repetition
@@ -106,12 +107,16 @@ def analyze_keywords(
 
     corpus = _resume_search_corpus(resume)
     raw_display = resume.get("raw_text") or ""
+    evidence = EvidenceIndex(resume.get("source_text") or raw_display, skills=list(dict.fromkeys(keywords + list(resume.get("skills") or []))))
+    lam = list_credit()
 
     matched: list[dict[str, Any]] = []
     missing: list[str] = []
     placement_summary = {"summary": 0, "skills": 0, "experience": 0, "resume_only": 0}
     total_weight = 0.0
     earned_weight = 0.0
+    raw_earned_weight = 0.0
+    listed_only: list[str] = []
 
     for kw in keywords:
         is_required = kw in required
@@ -121,7 +126,12 @@ def analyze_keywords(
         ok, match_w, placements = _match_keyword(kw, corpus)
 
         if ok:
-            earned_weight += base_weight * match_w
+            ev_status = evidence.status(kw)
+            ev_factor = evidence.factor(kw, lam)
+            raw_earned_weight += base_weight * match_w
+            earned_weight += base_weight * match_w * ev_factor
+            if ev_status == "listed_only":
+                listed_only.append(kw)
             for p in placements:
                 if p in placement_summary:
                     placement_summary[p] += 1
@@ -133,11 +143,14 @@ def analyze_keywords(
                 "match_type": "exact" if match_w >= 1.0 else "synonym",
                 "placements": placements,
                 "count": _count_occurrences(kw, corpus["full"]),
+                "evidence": ev_status,
+                "credit": round(match_w * ev_factor, 2),
             })
         else:
             missing.append(kw)
 
     keyword_score = round((earned_weight / total_weight) * 100, 1) if total_weight else 0.0
+    raw_keyword_score = round((raw_earned_weight / total_weight) * 100, 1) if total_weight else 0.0
 
     # Density / stuffing warnings (industry: penalize unnatural repetition)
     density_warnings: list[str] = []
@@ -171,4 +184,8 @@ def analyze_keywords(
         "highlights": highlights,
         "total_jd_keywords": len(keywords),
         "matched_count": len(matched),
+        "raw_keyword_score": raw_keyword_score,
+        "listed_only": listed_only,
+        "list_credit": lam,
+        "stuffing_warnings": detect_stuffing(evidence, keywords),
     }

@@ -1,0 +1,55 @@
+{
+  "n_pairs": 1759,
+  "methods": {
+    "v1": {
+      "auc": 0.542,
+      "within_jd_auc": 0.626
+    },
+    "v2": {
+      "auc": 0.61,
+      "within_jd_auc": 0.699
+    },
+    "skills_v1": {
+      "auc": 0.554,
+      "within_jd_auc": 0.613
+    },
+    "skills_v2": {
+      "auc": 0.559,
+      "within_jd_auc": 0.618
+    },
+    "context": {
+      "auc": 0.624,
+      "within_jd_auc": 0.723
+    }
+  },
+  "ranking": {
+    "v1": {
+      "mrr": 0.443,
+      "hit1": 0.243
+    },
+    "v2": {
+      "mrr": 0.49,
+      "hit1": 0.292
+    },
+    "context": {
+      "mrr": 0.471,
+      "hit1": 0.257
+    },
+    "n_queries": 430
+  },
+  "stuffing": {
+    "v1": {
+      "mean_before": 37.7,
+      "mean_after": 86.8,
+      "pass_rate_before": 0.455,
+      "pass_rate_after": 1.0
+    },
+    "v2": {
+      "mean_before": 39.8,
+      "mean_after": 56.4,
+      "pass_rate_before": 0.37,
+      "pass_rate_after": 0.84
+    }
+  },
+  "seconds": 601
+}
