@@ -19,8 +19,13 @@ _BAD_TITLE_HINTS = re.compile(r"\b(about|company|who we are|overview|description
 
 _EDU_LEVELS = [
     (3, "PhD", re.compile(r"\b(ph\.?\s?d|doctorate|doctoral)\b", re.I)),
-    (2, "Master's", re.compile(r"\b(master'?s?|m\.?\s?tech|m\.?\s?sc|mba|m\.?\s?s\b|m\.?\s?e\b|mca|postgraduate)\b", re.I)),
-    (1, "Bachelor's", re.compile(r"\b(bachelor'?s?|b\.?\s?tech|b\.?\s?sc|b\.?\s?e\b|b\.?\s?s\b|bca|b\.?\s?com|undergraduate|graduate degree|degree in)\b", re.I)),
+    # Undotted "MS"/"ME" are not matched: "MS Office" and the word "me" are far more common than the degrees.
+    (2, "Master's", re.compile(
+        r"(?<![A-Za-z])(master'?s?|m\.?\s?tech|m\.?\s?sc|mba|mca|postgraduate|m\.\s?s\.?|m\.\s?e\.?)(?![A-Za-z])", re.I)),
+    # Undotted "BE"/"BS" count only in capitals, so the English word "be" is never read as a degree.
+    (1, "Bachelor's", re.compile(
+        r"(?<![A-Za-z])(bachelor'?s?|b\.?\s?tech|b\.?\s?sc|bca|b\.?\s?com|b\.\s?e\.?|b\.\s?s\.?|undergraduate|degree in)(?![A-Za-z])|"
+        r"(?-i:\b(?:BE|BS)\b)", re.I)),
 ]
 
 
@@ -29,10 +34,17 @@ def _tokens(text: str) -> list[str]:
 
 
 def _edu_level(text: str) -> tuple[int, str]:
+    """Highest degree level mentioned in the text (used for the resume)."""
     for level, label, pattern in _EDU_LEVELS:
         if pattern.search(text or ""):
             return level, label
     return 0, ""
+
+
+def _required_edu_level(text: str) -> tuple[int, str]:
+    """Lowest degree level a JD mentions: "Bachelor's or Master's" only requires a Bachelor's."""
+    found = [(level, label) for level, label, pattern in _EDU_LEVELS if pattern.search(text or "")]
+    return min(found) if found else (0, "")
 
 
 def _check(name: str, status: str, detail: str) -> dict[str, str]:
@@ -60,7 +72,7 @@ def check_job_title(resume: dict[str, Any], jd: dict[str, Any]) -> dict[str, str
 
 
 def check_education(resume: dict[str, Any], jd: dict[str, Any]) -> dict[str, str]:
-    jd_level, jd_label = _edu_level(jd.get("raw_text") or "")
+    jd_level, jd_label = _required_edu_level(jd.get("raw_text") or "")
     if not jd_level:
         return _check("Education level", "unknown", "The JD does not state a degree requirement.")
     edu_text = " ".join(

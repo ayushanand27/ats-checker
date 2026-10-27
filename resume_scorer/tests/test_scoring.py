@@ -155,3 +155,16 @@ def test_detect_stuffing_needs_most_jd_skills_in_one_list():
         "Skills: Python, SQL, Excel, Power BI, Tableau"
     )
     assert not detect_stuffing(EvidenceIndex(genuine), skills)  # long list is fine when skills are used
+
+
+def test_education_check_does_not_misread_ordinary_words():
+    from scoring.requirements_check import check_education, _required_edu_level
+
+    # "me", "MS Office" and "be" are not degrees
+    assert _required_edu_level("You will join me. Must be good with MS Office.") == (0, "")
+    # "Bachelor's or Master's" only requires a Bachelor's
+    assert _required_edu_level("B.E/B.Tech or M.Tech in Computer Science")[0] == 1
+    assert _required_edu_level("Master's degree required")[0] == 2
+    resume = {"education": [{"degree": "B.Tech, CSE", "institution": "Manipal University Jaipur"}]}
+    result = check_education(resume, {"raw_text": "Bachelor's or Master's in a technical field"})
+    assert result["status"] == "pass"
