@@ -77,9 +77,9 @@ def check_formatting(
     checks.append(_fmt_check(
         "No table-based layout",
         not has_tables,
-        "DOCX contains tables — some ATS systems (Taleo, Workday) parse table cells unreliably"
+        "Resume contains tables — some ATS systems (Taleo, Workday) parse table cells unreliably"
         if has_tables
-        else "No table structures detected in DOCX",
+        else "No table structures detected",
         8,
     ))
 

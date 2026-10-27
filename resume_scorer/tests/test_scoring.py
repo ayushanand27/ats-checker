@@ -168,3 +168,13 @@ def test_education_check_does_not_misread_ordinary_words():
     resume = {"education": [{"degree": "B.Tech, CSE", "institution": "Manipal University Jaipur"}]}
     result = check_education(resume, {"raw_text": "Bachelor's or Master's in a technical field"})
     assert result["status"] == "pass"
+
+
+def test_job_title_matches_role_part_after_dash_and_blocklist_extended():
+    from scoring.requirements_check import check_job_title
+    from scoring.semantic_match import SEMANTIC_BLOCKLIST
+
+    resume = {"raw_text": "Aspiring AI Engineer with Python experience"}
+    res = check_job_title(resume, {"title": "Digital Catalyst - AI Engineer"})
+    assert res["status"] == "pass"
+    assert ("data science", "big data") in SEMANTIC_BLOCKLIST

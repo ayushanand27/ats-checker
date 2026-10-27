@@ -59,6 +59,11 @@ def check_job_title(resume: dict[str, Any], jd: dict[str, Any]) -> dict[str, str
     text = (resume.get("raw_text") or "").lower()
     if title.lower() in text:
         return _check("Job title match", "pass", f"Your resume contains the exact title “{title}”.")
+    # "Digital Catalyst - AI Engineer": the programme name before the dash is not the role.
+    for part in re.split(r"\s[-–—|:]\s", title)[::-1]:
+        part = part.strip()
+        if part and part.lower() != title.lower() and len(part.split()) >= 2 and part.lower() in text:
+            return _check("Job title match", "pass", f"Your resume contains the role title “{part}” (from “{title}”).")
     core = _tokens(title)
     if not core:
         return _check("Job title match", "unknown", "Could not read a clear job title from the JD.")
