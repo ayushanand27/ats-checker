@@ -178,3 +178,13 @@ def test_job_title_matches_role_part_after_dash_and_blocklist_extended():
     res = check_job_title(resume, {"title": "Digital Catalyst - AI Engineer"})
     assert res["status"] == "pass"
     assert ("data science", "big data") in SEMANTIC_BLOCKLIST
+
+
+def test_education_requirement_edge_cases():
+    from scoring.requirements_check import _required_edu_level
+
+    assert _required_edu_level("Master's degree in Computer Science required")[0] == 2
+    assert _required_edu_level("Bachelor's preferred; Master's required")[0] == 2
+    assert _required_edu_level("Bachelor's required. Master's is a plus.")[0] == 1
+    assert _required_edu_level("BE RESPONSIBLE FOR REPORTING") == (0, "")
+    assert _required_edu_level("BE in Computer Science or MCA")[0] == 1
