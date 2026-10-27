@@ -50,6 +50,9 @@ SEMANTIC_BLOCKLIST: frozenset[tuple[str, str]] = frozenset(
         ("Communication", "Networking"), ("Accounting", "Business Analysis"),
         ("Business Analysis", "Accounting"), ("Java", "Unix"), ("Salesforce", "Unix"),
         ("Apache", "PHP"), ("Apache Beam", "Apache"),
+        # Found by running the tool on a real student resume: related fields, not substitutes.
+        ("Data Science", "Big Data"), ("Big Data", "Data Science"),
+        ("Data Science", "Data Analysis"), ("Data Science", "SQL"),
     ]
 )
 

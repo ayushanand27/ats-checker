@@ -155,3 +155,36 @@ def test_detect_stuffing_needs_most_jd_skills_in_one_list():
         "Skills: Python, SQL, Excel, Power BI, Tableau"
     )
     assert not detect_stuffing(EvidenceIndex(genuine), skills)  # long list is fine when skills are used
+
+
+def test_education_check_does_not_misread_ordinary_words():
+    from scoring.requirements_check import check_education, _required_edu_level
+
+    # "me", "MS Office" and "be" are not degrees
+    assert _required_edu_level("You will join me. Must be good with MS Office.") == (0, "")
+    # "Bachelor's or Master's" only requires a Bachelor's
+    assert _required_edu_level("B.E/B.Tech or M.Tech in Computer Science")[0] == 1
+    assert _required_edu_level("Master's degree required")[0] == 2
+    resume = {"education": [{"degree": "B.Tech, CSE", "institution": "Manipal University Jaipur"}]}
+    result = check_education(resume, {"raw_text": "Bachelor's or Master's in a technical field"})
+    assert result["status"] == "pass"
+
+
+def test_job_title_matches_role_part_after_dash_and_blocklist_extended():
+    from scoring.requirements_check import check_job_title
+    from scoring.semantic_match import SEMANTIC_BLOCKLIST
+
+    resume = {"raw_text": "Aspiring AI Engineer with Python experience"}
+    res = check_job_title(resume, {"title": "Digital Catalyst - AI Engineer"})
+    assert res["status"] == "pass"
+    assert ("data science", "big data") in SEMANTIC_BLOCKLIST
+
+
+def test_education_requirement_edge_cases():
+    from scoring.requirements_check import _required_edu_level
+
+    assert _required_edu_level("Master's degree in Computer Science required")[0] == 2
+    assert _required_edu_level("Bachelor's preferred; Master's required")[0] == 2
+    assert _required_edu_level("Bachelor's required. Master's is a plus.")[0] == 1
+    assert _required_edu_level("BE RESPONSIBLE FOR REPORTING") == (0, "")
+    assert _required_edu_level("BE in Computer Science or MCA")[0] == 1
