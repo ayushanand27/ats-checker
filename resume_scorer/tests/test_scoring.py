@@ -188,3 +188,33 @@ def test_education_requirement_edge_cases():
     assert _required_edu_level("Bachelor's required. Master's is a plus.")[0] == 1
     assert _required_edu_level("BE RESPONSIBLE FOR REPORTING") == (0, "")
     assert _required_edu_level("BE in Computer Science or MCA")[0] == 1
+
+
+# ---------------------------------------------------------------- configurable weights + stuffing integration
+def test_score_weights_can_be_configured_and_bad_values_fall_back(monkeypatch):
+    from api.deps import full_weights
+
+    monkeypatch.setenv("SCORE_WEIGHTS", "1,1,2")
+    w = full_weights()
+    assert abs(w["context"] - 0.5) < 1e-9 and abs(sum(w.values()) - 1) < 1e-9
+    assert compose_score_detailed(80, 60, True, 40)["score"] == round(0.25 * 80 + 0.25 * 60 + 0.5 * 40, 1)
+    for bad in ("abc", "1,2", "-1,1,1", "0,0,0"):
+        monkeypatch.setenv("SCORE_WEIGHTS", bad)
+        assert full_weights() == {"structure": 0.20, "skills": 0.40, "context": 0.40}
+
+
+def test_genuine_bullets_outscore_a_pasted_skill_list():
+    from scoring.evidence import EvidenceIndex, detect_stuffing
+
+    jd_skills = ["Python", "SQL", "Tableau", "Excel", "Statistics"]
+    stuffed = "Skills: Python, SQL, Tableau, Excel, Statistics"
+    honest = (
+        "Built a Python ETL job that loaded sales data into SQL tables.\n"
+        "Created a Tableau dashboard used by the finance team.\n"
+        "Analysed survey results in Excel using statistics such as t-tests."
+    )
+    idx_stuffed, idx_honest = EvidenceIndex(stuffed, jd_skills), EvidenceIndex(honest, jd_skills)
+    assert detect_stuffing(idx_stuffed, jd_skills)
+    assert not detect_stuffing(idx_honest, jd_skills)
+    assert all(idx_honest.factor(s) == 1.0 for s in jd_skills)
+    assert all(idx_stuffed.factor(s) < 1.0 for s in jd_skills)

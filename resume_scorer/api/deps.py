@@ -17,6 +17,26 @@ LAYER1_WEIGHT_NO_JD = 1.0
 WEIGHTS_FULL = {"structure": 0.20, "skills": 0.40, "context": 0.40}
 WEIGHTS_NO_SKILLS = {"structure": 0.40, "context": 0.60}
 
+
+
+def full_weights() -> dict[str, float]:
+    """Three-layer weights. Override with SCORE_WEIGHTS="structure,skills,context", e.g. "0.2,0.4,0.4".
+
+    The numbers are normalised to sum to 1. Anything malformed falls back to the defaults.
+    """
+    raw = os.getenv("SCORE_WEIGHTS", "").strip()
+    if not raw:
+        return dict(WEIGHTS_FULL)
+    try:
+        parts = [float(x) for x in raw.split(",")]
+        if len(parts) != 3 or any(p < 0 for p in parts) or sum(parts) <= 0:
+            raise ValueError(raw)
+    except ValueError:
+        return dict(WEIGHTS_FULL)
+    total = sum(parts)
+    return dict(zip(("structure", "skills", "context"), (p / total for p in parts)))
+
+
 VALID_TEMPLATES = frozenset({"jacks_tech", "classic_nontech", "custom"})
 VALID_FORMATS = frozenset({"docx", "pdf", "tex"})
 
@@ -46,7 +66,7 @@ def compose_score_detailed(
         return {"score": round(layer1, 1), "mode": "structure_only",
                 "weights": {"structure": 1.0}, "components": {"structure": layer1}}
     if layer2 is not None and context is not None:
-        w = WEIGHTS_FULL
+        w = full_weights()
         score = w["structure"] * layer1 + w["skills"] * layer2 + w["context"] * context
         return {"score": round(score, 1), "mode": "full",
                 "weights": dict(w), "components": {"structure": layer1, "skills": layer2, "context": context}}

@@ -34,7 +34,7 @@ Then open **http://localhost:3000**.
 3. Show the three layers (structure, skills, contextual fit), the "Skill evidence check" and the "JD requirement checks".
 4. Optional: upload your own resume to show real feedback.
 
-Tests: `cd resume_scorer && python -m pytest -q` (20 tests, offline, about 3 s). The AI rewrite and chat features need a free `GROQ_API_KEY` in `resume_scorer/.env`; scoring works without it.
+Tests: `cd resume_scorer && python -m pytest -q` (22 tests, offline, about 5 s). The AI rewrite and chat features need a free `GROQ_API_KEY` in `resume_scorer/.env`; scoring works without it. Optional tuning (env vars): `SCORE_WEIGHTS="0.2,0.4,0.4"` (structure, skills, context), `EVIDENCE_LIST_CREDIT=0.5` (credit for skills that are only listed), `SKIP_LAYER2=1` / `SKIP_CONTEXT=1` (low-memory hosts).
 
 ---
 
