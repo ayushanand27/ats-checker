@@ -52,3 +52,9 @@ def ta_resume_text() -> str:
 @pytest.fixture
 def ta_jd_text() -> str:
     return (FIXTURES / "jd_talent_acquisition.txt").read_text(encoding="utf-8")
+
+
+@pytest.fixture(autouse=True)
+def _default_score_weights(monkeypatch):
+    """Keep tests independent of any SCORE_WEIGHTS exported in the shell."""
+    monkeypatch.delenv("SCORE_WEIGHTS", raising=False)
