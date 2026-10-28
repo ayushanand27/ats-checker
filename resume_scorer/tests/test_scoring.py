@@ -198,7 +198,7 @@ def test_score_weights_can_be_configured_and_bad_values_fall_back(monkeypatch):
     w = full_weights()
     assert abs(w["context"] - 0.5) < 1e-9 and abs(sum(w.values()) - 1) < 1e-9
     assert compose_score_detailed(80, 60, True, 40)["score"] == round(0.25 * 80 + 0.25 * 60 + 0.5 * 40, 1)
-    for bad in ("abc", "1,2", "-1,1,1", "0,0,0"):
+    for bad in ("abc", "1,2", "-1,1,1", "0,0,0", "nan,1,1", "inf,1,1", "1e308,1e308,0", "1,0,0"):
         monkeypatch.setenv("SCORE_WEIGHTS", bad)
         assert full_weights() == {"structure": 0.20, "skills": 0.40, "context": 0.40}
 

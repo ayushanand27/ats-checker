@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from functools import lru_cache
 from typing import Any, Optional
@@ -22,18 +23,21 @@ WEIGHTS_NO_SKILLS = {"structure": 0.40, "context": 0.60}
 def full_weights() -> dict[str, float]:
     """Three-layer weights. Override with SCORE_WEIGHTS="structure,skills,context", e.g. "0.2,0.4,0.4".
 
-    The numbers are normalised to sum to 1. Anything malformed falls back to the defaults.
+    The numbers are normalised to sum to 1. Anything malformed (including NaN/inf, or zero weight on both
+    skills and context) falls back to the defaults.
     """
     raw = os.getenv("SCORE_WEIGHTS", "").strip()
     if not raw:
         return dict(WEIGHTS_FULL)
     try:
         parts = [float(x) for x in raw.split(",")]
-        if len(parts) != 3 or any(p < 0 for p in parts) or sum(parts) <= 0:
+        total = sum(parts)
+        # Reject NaN/inf, negatives, an overflowing total, and weights that ignore the job match entirely.
+        if (len(parts) != 3 or not all(math.isfinite(p) and p >= 0 for p in parts)
+                or not math.isfinite(total) or total <= 0 or parts[1] + parts[2] <= 0):
             raise ValueError(raw)
     except ValueError:
         return dict(WEIGHTS_FULL)
-    total = sum(parts)
     return dict(zip(("structure", "skills", "context"), (p / total for p in parts)))
 
 
