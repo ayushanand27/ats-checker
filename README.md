@@ -6,6 +6,38 @@ ResumeMatch scores how well a resume matches a job description using industry-we
 
 > Core ATS scoring is **fully deterministic** (zero API calls for scoring). AI rewrite and resume-builder chat are **optional** Groq features. Document rendering is **100% template-based**.
 
+## Run it locally (demo steps)
+
+**Needs:** Python 3.10+, Node.js 18+, Git. First setup downloads the models (~130 MB), so do it once with internet.
+
+**Windows (PowerShell)**
+```powershell
+git clone https://github.com/ayushanand27/ats-checker.git
+cd ats-checker
+.\setup_windows.bat     # one time: venv, packages, models, frontend build
+.\start_windows.bat     # every time: starts API (8000) + web (3000)
+```
+
+**Mac / Linux**
+```bash
+git clone https://github.com/ayushanand27/ats-checker.git
+cd ats-checker
+bash setup.sh           # one time
+bash start.sh           # every time
+```
+
+Then open **http://localhost:3000**.
+
+**Demo flow (3 minutes)**
+1. Upload `demo/resume_strong_riya.pdf` and paste or upload `demo/jd_data_analyst.txt` → score about **84**.
+2. Upload `demo/resume_stuffed_aman.pdf` with the same JD → score about **42**. His skills are only pasted into a list, so the evidence check cuts the credit.
+3. Show the three layers (structure, skills, contextual fit), the "Skill evidence check" and the "JD requirement checks".
+4. Optional: upload your own resume to show real feedback.
+
+Tests: `cd resume_scorer && python -m pytest -q` (20 tests, offline, about 3 s). The AI rewrite and chat features need a free `GROQ_API_KEY` in `resume_scorer/.env`; scoring works without it.
+
+---
+
 ## What's new in v2 (Oct 2026)
 
 v2 came out of an audit of v1 on 1,759 publicly labelled resume–JD pairs ([dataset](https://huggingface.co/datasets/cnamuangtoun/resume-job-description-fit)). The audit showed that pasting the JD's skill list into any resume pushed the v1 score from 38 to 87.
