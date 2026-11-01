@@ -404,7 +404,7 @@ cd resume_scorer && source .venv/bin/activate   # Windows: .venv\Scripts\activat
 python scripts/baselines_ablation.py --csv test.csv --out ../docs/baselines_ablation.json
 ```
 
-The script ignores `SCORE_WEIGHTS` and `EVIDENCE_LIST_CREDIT` so the table always uses the default configuration.
+The script ignores `SCORE_WEIGHTS`, `EVIDENCE_LIST_CREDIT` and `CONTEXT_MODEL` so the table always uses the default configuration.
 
 An end-to-end script exercises signup → login → save profile → JD tailoring → history against a running API:
 

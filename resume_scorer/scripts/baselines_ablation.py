@@ -22,6 +22,11 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# Evaluate the default configuration, whatever the shell has set. Must run before the imports
+# below, because the context model name is read when the scoring modules are imported.
+for _var in ("SCORE_WEIGHTS", "EVIDENCE_LIST_CREDIT", "CONTEXT_MODEL"):
+    os.environ.pop(_var, None)
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -69,10 +74,6 @@ def main() -> None:
     ap.add_argument("--out", default="baselines_ablation.json")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
-    # Evaluate the default configuration, whatever the shell has set.
-    for var in ("SCORE_WEIGHTS", "EVIDENCE_LIST_CREDIT"):
-        os.environ.pop(var, None)
-
     df = pd.read_csv(args.csv)
     df["y"] = df.label.map({"No Fit": 0, "Potential Fit": 1, "Good Fit": 2})
     skill_model = Cached(get_embedding_model())
@@ -163,7 +164,11 @@ def main() -> None:
         "command": "python scripts/baselines_ablation.py --csv test.csv",
         "seed": args.seed,
         "dataset": "cnamuangtoun/resume-job-description-fit, test split",
-        "models": {"skills_and_context": "BAAI/bge-small-en-v1.5", "baseline": "sentence-transformers/all-MiniLM-L6-v2"},
+        "models": {
+            "skill_matching": "all-MiniLM-L6-v2",
+            "context_layer": "BAAI/bge-small-en-v1.5",
+            "baseline": "sentence-transformers/all-MiniLM-L6-v2",
+        },
         "n_pairs": len(df),
         "n_ranking_queries": len(good),
         "methods": res,
