@@ -400,8 +400,11 @@ python scripts/evaluate_dataset.py --csv test.csv --out eval_results.json
 Reproduce the baseline and layer-ablation table (same data, a few minutes on CPU):
 
 ```bash
+cd resume_scorer && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 python scripts/baselines_ablation.py --csv test.csv --out ../docs/baselines_ablation.json
 ```
+
+The script ignores `SCORE_WEIGHTS` and `EVIDENCE_LIST_CREDIT` so the table always uses the default configuration.
 
 An end-to-end script exercises signup → login → save profile → JD tailoring → history against a running API:
 

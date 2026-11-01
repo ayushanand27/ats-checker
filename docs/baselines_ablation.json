@@ -1,4 +1,11 @@
 {
+  "command": "python scripts/baselines_ablation.py --csv test.csv",
+  "seed": 0,
+  "dataset": "cnamuangtoun/resume-job-description-fit, test split",
+  "models": {
+    "skills_and_context": "BAAI/bge-small-en-v1.5",
+    "baseline": "sentence-transformers/all-MiniLM-L6-v2"
+  },
   "n_pairs": 1759,
   "n_ranking_queries": 430,
   "methods": {

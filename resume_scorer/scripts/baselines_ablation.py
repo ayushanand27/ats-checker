@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import random
 import re
 import sys
@@ -68,6 +69,9 @@ def main() -> None:
     ap.add_argument("--out", default="baselines_ablation.json")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
+    # Evaluate the default configuration, whatever the shell has set.
+    for var in ("SCORE_WEIGHTS", "EVIDENCE_LIST_CREDIT"):
+        os.environ.pop(var, None)
 
     df = pd.read_csv(args.csv)
     df["y"] = df.label.map({"No Fit": 0, "Potential Fit": 1, "Good Fit": 2})
@@ -129,6 +133,8 @@ def main() -> None:
             idx = list(idx)
             if y[idx].min() != y[idx].max():
                 v.append(roc_auc_score(y[idx], S[col].values[idx]))
+        if not v:
+            sys.exit("No JD has both Fit and No-Fit resumes; within-JD AUC is undefined for this data.")
         return float(np.mean(v))
 
     res = {n: {"auc": round(float(roc_auc_score(y, S[n])), 3), "within_jd_auc": round(within(n), 3)} for n in names}
@@ -137,6 +143,8 @@ def main() -> None:
     fit = set(zip(df.job_description_text[df.y >= 1], df.resume_text[df.y >= 1]))
     pool = list(R)
     good = [i for i in df.index[df.y == 2] if J[df.job_description_text[i]]["all_skills"]]
+    if not good:
+        sys.exit("No Good-Fit pair has extracted JD skills; the ranking metrics are undefined for this data.")
     rr = {n: [] for n in names}
     h1 = {n: [] for n in names}
     for i in good:
@@ -151,7 +159,15 @@ def main() -> None:
             h1[n].append(float(np.mean(ranks == 1)))
     for n in names:
         res[n]["mrr"], res[n]["hit1"] = round(float(np.mean(rr[n])), 3), round(float(np.mean(h1[n])), 3)
-    out = {"n_pairs": len(df), "n_ranking_queries": len(good), "methods": res}
+    out = {
+        "command": "python scripts/baselines_ablation.py --csv test.csv",
+        "seed": args.seed,
+        "dataset": "cnamuangtoun/resume-job-description-fit, test split",
+        "models": {"skills_and_context": "BAAI/bge-small-en-v1.5", "baseline": "sentence-transformers/all-MiniLM-L6-v2"},
+        "n_pairs": len(df),
+        "n_ranking_queries": len(good),
+        "methods": res,
+    }
     Path(args.out).write_text(json.dumps(out, indent=2))
     print(f"{'method':32s} {'AUC':>6s} {'wJD':>6s} {'MRR':>6s} {'Hit@1':>6s}")
     for n, m in res.items():
