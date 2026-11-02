@@ -218,3 +218,40 @@ def test_genuine_bullets_outscore_a_pasted_skill_list():
     assert not detect_stuffing(idx_honest, jd_skills)
     assert all(idx_honest.factor(s) == 1.0 for s in jd_skills)
     assert all(idx_stuffed.factor(s) < 1.0 for s in jd_skills)
+
+
+def test_wrapped_pdf_lines_do_not_become_fake_roles_or_education_entries():
+    from structurer import structure_resume
+
+    text = (
+        "Ayush Anand\nayush@example.com | +91 7004455149\n\n"
+        "EXPERIENCE\nGenAI Intern — 2026\n"
+        "• Built and deployed an AI platform on AWS EC2 with JWT login and\nLLM-generated questions via Groq API.\n"
+        "• Added proctoring with OpenCV, penalizing multiple faces and noise. — Salesforce Trainee  Feb 2026 – Jul 2026\n"
+        "• Completed training in Generative AI.\n\n"
+        "EDUCATION\nManipal University Jaipur\nExpected May 2027\n"
+        "B.Tech, Computer Science – CGPA 9.17/10\nJaipur, Rajasthan\n\n"
+        "PROJECTS\nSMRA | Python, FastAPI\n• Wrote 86 pytest tests with GitHub Actions\nCI.\n"
+    )
+    r = structure_resume(text)
+    titles = [e["title"] for e in r["experience"]]
+    assert titles == ["GenAI Intern — 2026", "Salesforce Trainee"]
+    assert r["experience"][0]["bullets"][0].endswith("LLM-generated questions via Groq API.")
+    assert r["experience"][1]["dates"] == "Feb 2026 – Jul 2026"
+    assert len(r["education"]) == 1
+    assert r["education"][0]["institution"] == "Manipal University Jaipur"
+    assert r["education"][0]["degree"].startswith("B.Tech")
+    assert r["education"][0]["dates"] == "Expected May 2027"
+    assert r["projects"][0]["bullets"][0].endswith("GitHub Actions CI.")
+
+
+def test_bullet_without_period_is_not_merged_with_next_header():
+    from structurer import structure_resume
+
+    text = (
+        "A B\na@b.com\n\nEXPERIENCE\nData Analyst Intern  Jan 2024 – Mar 2024\n"
+        "• Built dashboards used by the sales team across three regions every week\n"
+        "Backend Developer  Apr 2024 – Jun 2024\n• Wrote APIs.\n"
+    )
+    r = structure_resume(text)
+    assert len(r["experience"]) == 2

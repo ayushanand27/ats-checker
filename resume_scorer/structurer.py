@@ -123,6 +123,57 @@ def _normalize_lines(text: str) -> list[str]:
     return [ln.rstrip() for ln in text.replace("\r\n", "\n").split("\n")]
 
 
+_TERMINAL_PUNCT = (".", "!", "?", ":", ";")
+_GLUED_ROLE_RE = re.compile(r"^(?P<head>.*[.!?)])\s+[—–-]\s+(?P<role>[A-Z][^•\n]{3,90})$")
+_GLUED_PROJECT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z][^|.\n]{2,60}\s[–—-]\s[^|\n]{2,60}\s\|\s)")
+
+
+def _repair_wrapped_lines(lines: list[str]) -> list[str]:
+    """Undo PDF text-extraction artefacts before parsing.
+
+    1. A role header or project header glued onto the end of the previous bullet is split off.
+    2. A bullet that wraps onto the next line (previous line has no closing punctuation) is joined.
+    Headers, dates, bullets and section titles are never merged into a bullet.
+    """
+    split: list[str] = []
+    for ln in lines:
+        m = _GLUED_ROLE_RE.match(ln.strip())
+        if m and DATE_BOUNDARY_RE.search(m.group("role")):
+            split.extend([m.group("head"), m.group("role")])
+            continue
+        if "|" in ln and _GLUED_PROJECT_RE.search(ln):
+            split.extend(p for p in _GLUED_PROJECT_RE.split(ln) if p.strip())
+            continue
+        split.append(ln)
+
+    out: list[str] = []
+    in_bullet = False
+    for ln in split:
+        stripped = ln.strip()
+        if not stripped:
+            out.append(ln)
+            in_bullet = False
+            continue
+        if BULLET_RE.match(stripped):
+            out.append(ln)
+            in_bullet = True
+            continue
+        is_continuation = (
+            in_bullet
+            and out
+            and not out[-1].rstrip().endswith(_TERMINAL_PUNCT)
+            and not DATE_BOUNDARY_RE.search(stripped)
+            and _classify_section_header(_clean_header_line(stripped)) is None
+            and (stripped[0].islower() or stripped[0].isdigit() or stripped[0] == "(" or stripped.endswith((".", ")")))
+        )
+        if is_continuation:
+            out[-1] = out[-1].rstrip() + " " + stripped
+        else:
+            out.append(ln)
+            in_bullet = False
+    return out
+
+
 def _clean_header_line(line: str) -> str:
     """Normalize a line for section-header matching."""
     cleaned = line.strip().strip("\ufeff")
@@ -463,27 +514,49 @@ def _parse_experience_entries(lines: list[str]) -> list[dict[str, Any]]:
     return entries
 
 
+_INSTITUTION_RE = re.compile(r"\b(?:university|college|institute|school|academy|polytechnic|iit|nit|iiit)\b", re.I)
+_DEGREE_RE = re.compile(r"\b(?:b\.?\s?tech|m\.?\s?tech|b\.?\s?e\b|m\.?\s?e\b|b\.?\s?sc|m\.?\s?sc|b\.?\s?com|bca|mca|mba|bachelor|master|diploma|ph\.?d|doctorate|associate)", re.I)
+_EDU_DATE_RE = re.compile(r"(?:(?:expected|graduating|class of)\s+)?(?:[A-Z][a-z]{2,8}\.?\s+)?(?:19|20)\d{2}(?:\s*[–—-]\s*(?:(?:[A-Z][a-z]{2,8}\.?\s+)?(?:19|20)\d{2}|present|current))?", re.I)
+
+
 def _parse_education(lines: list[str]) -> list[dict[str, str]]:
+    """Group education lines into entries: institution, degree and dates may sit on separate lines."""
     entries: list[dict[str, str]] = []
+    cur: dict[str, str] = {"degree": "", "institution": "", "dates": ""}
+
+    def flush() -> None:
+        nonlocal cur
+        if cur["degree"] or cur["institution"]:
+            entries.append(cur)
+        cur = {"degree": "", "institution": "", "dates": ""}
+
     for line in lines:
         stripped = line.strip()
         if not stripped or BULLET_RE.match(stripped):
             continue
         dates = ""
-        dm = DATE_RANGE_RE.search(stripped)
+        dm = _EDU_DATE_RE.search(stripped)
+        if dm and not _INSTITUTION_RE.search(stripped) and not _DEGREE_RE.search(stripped):
+            if not cur["dates"]:
+                cur["dates"] = dm.group(0).strip()
+            continue
         if dm:
-            dates = dm.group(0)
-            stripped = stripped.replace(dates, "").strip(" ,|–—-")
-        degree, institution = stripped, ""
-        if "|" in stripped:
-            parts = [p.strip() for p in stripped.split("|")]
-            degree = parts[0]
-            institution = parts[1] if len(parts) > 1 else ""
-        elif "," in stripped:
-            parts = [p.strip() for p in stripped.split(",", 1)]
-            degree = parts[0]
-            institution = parts[1] if len(parts) > 1 else ""
-        entries.append({"degree": degree, "institution": institution, "dates": dates})
+            dates = dm.group(0).strip()
+            stripped = stripped.replace(dm.group(0), "").strip(" ,|–—-")
+        parts = [p.strip() for p in re.split(r"\s*\|\s*|,\s*", stripped) if p.strip()]
+        inst = next((p for p in parts if _INSTITUTION_RE.search(p)), "")
+        deg = next((p for p in parts if _DEGREE_RE.search(p) and p != inst), "")
+        if not inst and not deg:
+            # CGPA / location-only line: attach to the current entry as extra detail, never as a new entry
+            if cur["degree"] or cur["institution"]:
+                continue
+            deg = stripped
+        if (inst and cur["institution"]) or (deg and cur["degree"]):
+            flush()
+        cur["institution"] = cur["institution"] or inst
+        cur["degree"] = cur["degree"] or (stripped if deg and "," in stripped and not inst and deg == parts[0] else deg)
+        cur["dates"] = cur["dates"] or dates
+    flush()
     return entries
 
 
@@ -565,7 +638,7 @@ def _guess_name(lines: list[str], pdf_bytes: Optional[bytes] = None) -> str:
 
 def structure_resume(text: str, pdf_bytes: Optional[bytes] = None) -> dict[str, Any]:
     """Extract structured resume JSON via rules/regex only."""
-    lines = _normalize_lines(text)
+    lines = _repair_wrapped_lines(_normalize_lines(text))
     sections = _detect_sections(lines)
     taxonomy = _load_taxonomy()
     skills = _extract_skills(text, taxonomy)
