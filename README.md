@@ -34,7 +34,7 @@ Then open **http://localhost:3000**.
 3. Show the three layers (structure, skills, contextual fit), the "Skill evidence check" and the "JD requirement checks".
 4. Optional: upload your own resume to show real feedback.
 
-Tests: `cd resume_scorer && python -m pytest -q` (22 tests, offline, about 5 s). The AI rewrite and chat features need a free `GROQ_API_KEY` in `resume_scorer/.env`; scoring works without it. Optional tuning (env vars): `SCORE_WEIGHTS="0.2,0.4,0.4"` (structure, skills, context; only used when both a JD and all three layers are available, otherwise fixed fallback weights apply, e.g. with `SKIP_LAYER2`/`SKIP_CONTEXT`), `EVIDENCE_LIST_CREDIT=0.5` (credit for skills that are only listed), `SKIP_LAYER2=1` / `SKIP_CONTEXT=1` (low-memory hosts).
+Tests: `cd resume_scorer && python -m pytest -q` (25 tests, offline, about 5 s). The AI rewrite and chat features need a free `GROQ_API_KEY` in `resume_scorer/.env`; scoring works without it. Optional tuning (env vars): `SCORE_WEIGHTS="0.2,0.4,0.4"` (structure, skills, context; only used when both a JD and all three layers are available, otherwise fixed fallback weights apply, e.g. with `SKIP_LAYER2`/`SKIP_CONTEXT`), `EVIDENCE_LIST_CREDIT=0.5` (credit for skills that are only listed), `SKIP_LAYER2=1` / `SKIP_CONTEXT=1` (low-memory hosts).
 
 ---
 
@@ -53,7 +53,7 @@ v2 came out of an audit of v1 on 1,759 publicly labelled resume–JD pairs ([dat
 | **Parser fixes** (`parser.py`) | Word bullets exported to PDF as Symbol-font glyphs (U+F0B7) and DOCX list paragraphs are now detected, and wrapped bullet lines are re-joined. Before this, most Word-made resumes showed zero bullets. |
 | **Bigger skill vocabulary** | 36 new taxonomy skills and 25 new alias groups (React/React.js, Postgres, GenAI, DSA, …). |
 | **Safer auth default** | No more public fallback JWT secret: a random secret is generated once and stored next to the local DB. |
-| **Tests + evaluation** | `pytest` suite (17 tests, offline, about 3 s) and `scripts/evaluate_dataset.py` to reproduce the numbers below. |
+| **Tests + evaluation** | `pytest` suite (25 tests, offline, about 3 s) and `scripts/evaluate_dataset.py` to reproduce the numbers below. |
 | **One-click run** | `setup_windows.bat` / `start_windows.bat` (and `setup.sh` / `start.sh`), plus demo files in `demo/`. |
 
 **Measured on the 1,759-pair public test set** (`docs/eval_results_v2.json`):
