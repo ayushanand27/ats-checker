@@ -69,6 +69,22 @@ v2 came out of an audit of v1 on 1,759 publicly labelled resume–JD pairs ([dat
 
 The ranking metrics use expected values under random tie-breaking, because keyword scores tie often. Labels come from a public dataset of unknown provenance, so treat the absolute numbers as indicative.
 
+**Which layer does what?** `scripts/baselines_ablation.py` scores each layer alone and the baselines on the same pairs (`docs/baselines_ablation.json`):
+
+| Method | AUC | Within-JD AUC | MRR | Hit@1 |
+|---|---|---|---|---|
+| TF-IDF cosine | 0.578 | 0.639 | 0.424 | 0.226 |
+| BM25 | 0.576 | 0.592 | 0.385 | 0.191 |
+| MiniLM chunk-average cosine | 0.602 | 0.705 | 0.446 | 0.237 |
+| BGE-small chunk-average cosine | 0.624 | 0.723 | 0.469 | 0.253 |
+| Structure only | 0.509 | 0.544 | 0.320 | 0.116 |
+| Skills only | 0.558 | 0.618 | 0.428 | 0.232 |
+| Context only | 0.624 | 0.723 | 0.471 | 0.257 |
+| Structure + skills | 0.546 | 0.629 | 0.430 | 0.222 |
+| **Full v2 (all three)** | 0.610 | 0.699 | **0.490** | **0.292** |
+
+Honest reading: the context layer carries almost all the fit signal, and the structure layer is at chance on fit by design (it checks formatting and parseability). The full score ranks the true resume first most often (best MRR and Hit@1) and gives skill-level feedback and stuffing resistance, but it does not beat the context layer on pooled AUC. All scores are weak against these noisy labels.
+
 ---
 
 ## Run it on Windows in two clicks
@@ -332,6 +348,7 @@ ats-checker/
     ├── tests/                      # pytest suite (offline, stub models)
     ├── scripts/
     │   ├── evaluate_dataset.py     # v1 vs v2 on the public labelled dataset
+    │   ├── baselines_ablation.py   # baselines + layer ablation on the same data
     │   ├── langfuse_smoke.py       # verify Langfuse connection
     │   └── test_auth_profile.py    # auth + profile + tailor + history test
     ├── templates/
@@ -379,6 +396,15 @@ Reproduce the v1-vs-v2 evaluation (about 10 minutes on CPU):
 curl -L -o test.csv https://huggingface.co/datasets/cnamuangtoun/resume-job-description-fit/resolve/main/test.csv
 python scripts/evaluate_dataset.py --csv test.csv --out eval_results.json
 ```
+
+Reproduce the baseline and layer-ablation table (same data, a few minutes on CPU):
+
+```bash
+cd resume_scorer && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+python scripts/baselines_ablation.py --csv test.csv --out ../docs/baselines_ablation.json
+```
+
+The script ignores `SCORE_WEIGHTS`, `EVIDENCE_LIST_CREDIT` and `CONTEXT_MODEL` so the table always uses the default configuration.
 
 An end-to-end script exercises signup → login → save profile → JD tailoring → history against a running API:
 
