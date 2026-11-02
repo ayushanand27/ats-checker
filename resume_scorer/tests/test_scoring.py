@@ -255,3 +255,23 @@ def test_bullet_without_period_is_not_merged_with_next_header():
     )
     r = structure_resume(text)
     assert len(r["experience"]) == 2
+
+
+def test_parser_edge_cases_from_review():
+    from structurer import _parse_education, _repair_wrapped_lines, structure_resume
+
+    # a dated bullet that is not a role header stays one bullet
+    out = _repair_wrapped_lines(["• Built cloud services. — AWS Jan 2022 – Mar 2023"])
+    assert out == ["• Built cloud services. — AWS Jan 2022 – Mar 2023"]
+    # an undated role header after an unfinished bullet is not joined into it
+    out = _repair_wrapped_lines(["• Built dashboards for the sales team", "Backend Developer (Contract)"])
+    assert out == ["• Built dashboards for the sales team", "Backend Developer (Contract)"]
+    # institution and degree on one line
+    assert _parse_education(["Stanford University — Bachelor of Science"]) == [
+        {"degree": "Bachelor of Science", "institution": "Stanford University", "dates": ""}
+    ]
+    # a leading location never becomes a degree
+    edu = _parse_education(["Cambridge, MA", "Harvard University", "Bachelor of Science"])
+    assert edu == [{"degree": "Bachelor of Science", "institution": "Harvard University", "dates": ""}]
+    # unrecognised wording still yields entries (line-per-entry fallback)
+    assert _parse_education(["Some Programme, Some Place"])[0]["degree"] == "Some Programme"

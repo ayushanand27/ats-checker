@@ -124,6 +124,11 @@ def _normalize_lines(text: str) -> list[str]:
 
 
 _TERMINAL_PUNCT = (".", "!", "?", ":", ";")
+_ROLE_WORD_RE = re.compile(
+    r"\b(?:engineer|developer|manager|analyst|director|lead|intern|trainee|consultant|architect|designer|"
+    r"specialist|scientist|researcher|coordinator|associate|executive|officer|programmer|apprentice|fellow|head)\b",
+    re.I,
+)
 _GLUED_ROLE_RE = re.compile(r"^(?P<head>.*[.!?)])\s+[—–-]\s+(?P<role>[A-Z][^•\n]{3,90})$")
 _GLUED_PROJECT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z][^|.\n]{2,60}\s[–—-]\s[^|\n]{2,60}\s\|\s)")
 
@@ -138,7 +143,7 @@ def _repair_wrapped_lines(lines: list[str]) -> list[str]:
     split: list[str] = []
     for ln in lines:
         m = _GLUED_ROLE_RE.match(ln.strip())
-        if m and DATE_BOUNDARY_RE.search(m.group("role")):
+        if m and DATE_BOUNDARY_RE.search(m.group("role")) and _ROLE_WORD_RE.search(m.group("role")):
             split.extend([m.group("head"), m.group("role")])
             continue
         if "|" in ln and _GLUED_PROJECT_RE.search(ln):
@@ -164,7 +169,7 @@ def _repair_wrapped_lines(lines: list[str]) -> list[str]:
             and not out[-1].rstrip().endswith(_TERMINAL_PUNCT)
             and not DATE_BOUNDARY_RE.search(stripped)
             and _classify_section_header(_clean_header_line(stripped)) is None
-            and (stripped[0].islower() or stripped[0].isdigit() or stripped[0] == "(" or stripped.endswith((".", ")")))
+            and (stripped[0].islower() or stripped[0].isdigit() or stripped[0] == "(" or stripped.endswith("."))
         )
         if is_continuation:
             out[-1] = out[-1].rstrip() + " " + stripped
@@ -519,8 +524,31 @@ _DEGREE_RE = re.compile(r"\b(?:b\.?\s?tech|m\.?\s?tech|b\.?\s?e\b|m\.?\s?e\b|b\.
 _EDU_DATE_RE = re.compile(r"(?:(?:expected|graduating|class of)\s+)?(?:[A-Z][a-z]{2,8}\.?\s+)?(?:19|20)\d{2}(?:\s*[–—-]\s*(?:(?:[A-Z][a-z]{2,8}\.?\s+)?(?:19|20)\d{2}|present|current))?", re.I)
 
 
+def _parse_education_line_per_entry(lines: list[str]) -> list[dict[str, str]]:
+    """Fallback for education blocks with no recognisable institution or degree words: one entry per line."""
+    entries: list[dict[str, str]] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or BULLET_RE.match(stripped):
+            continue
+        dates = ""
+        dm = DATE_RANGE_RE.search(stripped)
+        if dm:
+            dates = dm.group(0)
+            stripped = stripped.replace(dates, "").strip(" ,|–—-")
+        degree, institution = stripped, ""
+        for sep in ("|", ","):
+            if sep in stripped:
+                parts = [p.strip() for p in stripped.split(sep, 1)]
+                degree, institution = parts[0], parts[1] if len(parts) > 1 else ""
+                break
+        entries.append({"degree": degree, "institution": institution, "dates": dates})
+    return entries
+
+
 def _parse_education(lines: list[str]) -> list[dict[str, str]]:
-    """Group education lines into entries: institution, degree and dates may sit on separate lines."""
+    """Group education lines into entries: institution, degree and dates may sit on separate lines
+    or share one line ("Stanford University — Bachelor of Science")."""
     entries: list[dict[str, str]] = []
     cur: dict[str, str] = {"degree": "", "institution": "", "dates": ""}
 
@@ -534,30 +562,33 @@ def _parse_education(lines: list[str]) -> list[dict[str, str]]:
         stripped = line.strip()
         if not stripped or BULLET_RE.match(stripped):
             continue
-        dates = ""
+        has_inst, has_deg = bool(_INSTITUTION_RE.search(stripped)), bool(_DEGREE_RE.search(stripped))
         dm = _EDU_DATE_RE.search(stripped)
-        if dm and not _INSTITUTION_RE.search(stripped) and not _DEGREE_RE.search(stripped):
-            if not cur["dates"]:
-                cur["dates"] = dm.group(0).strip()
+        if dm and not has_inst and not has_deg:
+            if cur["degree"] or cur["institution"]:
+                cur["dates"] = cur["dates"] or dm.group(0).strip()
             continue
+        if not has_inst and not has_deg:
+            continue  # location, CGPA or other detail line: never starts an entry
+        dates = ""
         if dm:
             dates = dm.group(0).strip()
             stripped = stripped.replace(dm.group(0), "").strip(" ,|–—-")
-        parts = [p.strip() for p in re.split(r"\s*\|\s*|,\s*", stripped) if p.strip()]
-        inst = next((p for p in parts if _INSTITUTION_RE.search(p)), "")
-        deg = next((p for p in parts if _DEGREE_RE.search(p) and p != inst), "")
-        if not inst and not deg:
-            # CGPA / location-only line: attach to the current entry as extra detail, never as a new entry
-            if cur["degree"] or cur["institution"]:
-                continue
+        inst = deg = ""
+        if has_inst:
+            parts = [p.strip() for p in re.split(r"\s*\|\s*|\s+[—–-]\s+|,\s*", stripped) if p.strip()]
+            inst = next((p for p in parts if _INSTITUTION_RE.search(p)), "")
+            rest = ", ".join(p for p in parts if p != inst)
+            deg = rest if _DEGREE_RE.search(rest) else ""
+        else:
             deg = stripped
         if (inst and cur["institution"]) or (deg and cur["degree"]):
             flush()
         cur["institution"] = cur["institution"] or inst
-        cur["degree"] = cur["degree"] or (stripped if deg and "," in stripped and not inst and deg == parts[0] else deg)
+        cur["degree"] = cur["degree"] or deg
         cur["dates"] = cur["dates"] or dates
     flush()
-    return entries
+    return entries or _parse_education_line_per_entry(lines)
 
 
 def _parse_projects(lines: list[str]) -> list[dict[str, Any]]:
