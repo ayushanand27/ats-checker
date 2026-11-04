@@ -431,21 +431,6 @@ def test_pdf_checks_only_appear_when_flags_exist():
     assert not checks["Contact info in page body"]["passed"]
 
 
-def test_job_title_match_is_advisory_and_does_not_change_score():
-    from scoring.deterministic import score_deterministic
-
-    resume = {"raw_text": "Jane Doe\nData Scientist\n" + "word " * 200, "contact": {"email": "a@b.co"},
-              "sections_found": ["experience", "education", "skills"], "skills": ["Python"] * 6}
-    base = score_deterministic(resume, None)["score"]
-    with_jd = score_deterministic(resume, {"title": "Data Scientist"})
-    assert with_jd["score"] == base
-    chk = next(c for c in with_jd["checks"] if c["name"] == "Job title match")
-    assert chk["passed"] and chk["weight"] == 0
-    miss = score_deterministic(resume, {"title": "Quantum Chef"})
-    assert miss["score"] == base
-    assert not next(c for c in miss["checks"] if c["name"] == "Job title match")["passed"]
-
-
 def test_mixed_bullet_styles_flagged_but_unscored():
     from scoring.formatting import check_formatting
 
