@@ -11,7 +11,9 @@ from api.deps import (
     get_embedding_model,
     layer2_enabled,
 )
+from scoring.vendor_views import compute_vendor_views
 from api.schemas import (
+    VendorView,
     AnalyzeResponse,
     ContentQuality,
     ContextualResult,
@@ -104,6 +106,12 @@ def run_analysis(
         keyword_analysis=kw_raw, requirements=requirements, content_quality=quality,
     )
     band = score_band_label(core, jd_provided)
+    vendor_views = compute_vendor_views(
+        resume_struct.get("source_text") or resume_struct.get("raw_text") or "",
+        (jd_struct or {}).get("all_skills") or [],
+        layer2["score"] if layer2 else None,
+        layer1.get("formatting_checks", []),
+    )
 
     return AnalyzeResponse(
         core_score=core,
@@ -117,6 +125,7 @@ def run_analysis(
         gaps=ScoreGaps(**gaps),
         top_fixes=top_fixes,
         score_band=band,
+        vendor_views=[VendorView(**v) for v in vendor_views],
         keyword_analysis=keyword_analysis,
         contextual=ContextualResult(**contextual) if contextual else None,
         score_breakdown=ScoreBreakdown(**breakdown),

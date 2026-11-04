@@ -222,6 +222,49 @@ def detect_multi_column_pdf(data: bytes) -> bool:
     return False
 
 
+_CONTACT_IN_TEXT_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+|\+?\d[\d\s().-]{8,}\d")
+
+
+def analyze_pdf_layout(data: bytes) -> dict[str, object]:
+    """Layout facts a real ATS parser cares about, read from the PDF itself.
+
+    Idea credited to Resume Matcher (srbhr, Apache-2.0) and ATS Screener
+    (sunnypatell, MIT), which both run parse-checks on the file, not just the
+    text. This is our own implementation on PyMuPDF.
+    Returns: page_count, image_count, garbled_ratio, contact_only_in_margin.
+    """
+    doc = fitz.open(stream=data, filetype="pdf")
+    try:
+        images = 0
+        chars = 0
+        garbled = 0
+        margin_contact = False
+        body_contact = False
+        for page in doc:
+            images += len(page.get_images(full=True))
+            height = page.rect.height
+            for block in page.get_text("blocks"):
+                if len(block) < 5:
+                    continue
+                text = str(block[4])
+                chars += len(text)
+                garbled += sum(1 for c in text if c == "\ufffd" or 0xE000 <= ord(c) <= 0xF8FF)
+                if _CONTACT_IN_TEXT_RE.search(text):
+                    y0, y1 = float(block[1]), float(block[3])
+                    if y1 < height * 0.06 or y0 > height * 0.94:
+                        margin_contact = True
+                    else:
+                        body_contact = True
+        return {
+            "page_count": len(doc),
+            "image_count": images,
+            "garbled_ratio": (garbled / chars) if chars else 0.0,
+            "contact_only_in_margin": margin_contact and not body_contact,
+        }
+    finally:
+        doc.close()
+
+
 def docx_has_tables(data: bytes) -> bool:
     """True when DOCX contains table structures."""
     doc = Document(io.BytesIO(data))
