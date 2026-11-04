@@ -321,3 +321,67 @@ def test_groq_non_model_errors_are_not_swallowed(monkeypatch):
 
     with pytest.raises(ValueError):
         groq_models.chat_completion(Boom(), messages=[])
+
+
+def test_groq_blocked_model_403_falls_back_but_other_403_does_not(monkeypatch):
+    import pytest
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    monkeypatch.setattr(groq_models, "_working_for_override", "")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+
+    class Forbidden(Exception):
+        status_code = 403
+
+    class Client:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    if model == "llama-3.3-70b-versatile":
+                        raise Forbidden("model_permission_blocked_project")
+                    return model
+
+    assert groq_models.chat_completion(Client(), messages=[]) == "openai/gpt-oss-120b"
+
+    class Denied:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    raise Forbidden("forbidden: invalid permissions")
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    with pytest.raises(Forbidden):
+        groq_models.chat_completion(Denied(), messages=[])
+
+
+def test_groq_working_model_beats_unavailable_override_and_resets_on_change(monkeypatch):
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    monkeypatch.setattr(groq_models, "_working_for_override", "")
+    monkeypatch.setenv("GROQ_MODEL", "bad/model")
+    tried = []
+
+    class NotFound(Exception):
+        status_code = 404
+
+    class Client:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    tried.append(model)
+                    if model in ("bad/model", "llama-3.3-70b-versatile"):
+                        raise NotFound("model_not_found")
+                    return model
+
+    assert groq_models.chat_completion(Client(), messages=[]) == "openai/gpt-oss-120b"
+    tried.clear()
+    groq_models.chat_completion(Client(), messages=[])
+    assert tried == ["openai/gpt-oss-120b"]  # no repeat of the failing override
+
+    monkeypatch.setenv("GROQ_MODEL", "other/model")  # override changed: start over
+    assert groq_models.model_candidates()[0] == "other/model"
