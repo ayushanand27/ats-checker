@@ -8,9 +8,9 @@ from typing import Any, Optional
 
 from groq import Groq
 
+from insights.groq_models import chat_completion, preferred_model
 from insights.tracing import start_generation, usage_from_response
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are an expert resume writer focused on ATS optimization.
 
@@ -120,7 +120,7 @@ def get_rewrite_suggestions(
     for attempt in range(2):
         gen = start_generation(
             name="resume_rewrite",
-            model=GROQ_MODEL,
+            model=preferred_model(),
             input=messages,
             metadata={"temperature": 0.3, "max_tokens": 4096, "attempt": attempt + 1},
             user_id=trace_user_id,
@@ -128,8 +128,8 @@ def get_rewrite_suggestions(
             tags=["rewrite"],
         )
         try:
-            response = client.chat.completions.create(
-                model=GROQ_MODEL,
+            response = chat_completion(
+                client,
                 messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0.3,

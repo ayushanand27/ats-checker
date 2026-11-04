@@ -277,6 +277,115 @@ def test_parser_edge_cases_from_review():
     assert _parse_education(["Some Programme, Some Place"])[0]["degree"] == "Some Programme"
 
 
+def test_groq_falls_back_when_model_is_unavailable(monkeypatch):
+    from insights import groq_models
+
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    tried = []
+
+    class NotFound(Exception):
+        status_code = 404
+
+    class FakeCompletions:
+        def create(self, model, **kwargs):
+            tried.append(model)
+            if model == "llama-3.3-70b-versatile":
+                raise NotFound("model_not_found")
+            return {"model": model}
+
+    class FakeClient:
+        class chat:  # noqa: N801
+            completions = FakeCompletions()
+
+    out = groq_models.chat_completion(FakeClient(), messages=[])
+    assert out["model"] == "openai/gpt-oss-120b"
+    assert tried == ["llama-3.3-70b-versatile", "openai/gpt-oss-120b"]
+    # next call starts from the model that worked
+    assert groq_models.preferred_model() == "openai/gpt-oss-120b"
+    monkeypatch.setattr(groq_models, "_working_model", None)
+
+
+def test_groq_non_model_errors_are_not_swallowed(monkeypatch):
+    import pytest
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+
+    class Boom:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    raise ValueError("401 invalid api key")
+
+    with pytest.raises(ValueError):
+        groq_models.chat_completion(Boom(), messages=[])
+
+
+def test_groq_blocked_model_403_falls_back_but_other_403_does_not(monkeypatch):
+    import pytest
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    monkeypatch.setattr(groq_models, "_working_for_override", "")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+
+    class Forbidden(Exception):
+        status_code = 403
+
+    class Client:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    if model == "llama-3.3-70b-versatile":
+                        raise Forbidden("model_permission_blocked_project")
+                    return model
+
+    assert groq_models.chat_completion(Client(), messages=[]) == "openai/gpt-oss-120b"
+
+    class Denied:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    raise Forbidden("forbidden: invalid permissions")
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    with pytest.raises(Forbidden):
+        groq_models.chat_completion(Denied(), messages=[])
+
+
+def test_groq_working_model_beats_unavailable_override_and_resets_on_change(monkeypatch):
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    monkeypatch.setattr(groq_models, "_working_for_override", "")
+    monkeypatch.setenv("GROQ_MODEL", "bad/model")
+    tried = []
+
+    class NotFound(Exception):
+        status_code = 404
+
+    class Client:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    tried.append(model)
+                    if model in ("bad/model", "llama-3.3-70b-versatile"):
+                        raise NotFound("model_not_found")
+                    return model
+
+    assert groq_models.chat_completion(Client(), messages=[]) == "openai/gpt-oss-120b"
+    tried.clear()
+    groq_models.chat_completion(Client(), messages=[])
+    assert tried == ["openai/gpt-oss-120b"]  # no repeat of the failing override
+
+    monkeypatch.setenv("GROQ_MODEL", "other/model")  # override changed: start over
+    assert groq_models.model_candidates()[0] == "other/model"
+
 def _make_pdf(pages=1, with_image=False, header_contact=False):
     import fitz
 
