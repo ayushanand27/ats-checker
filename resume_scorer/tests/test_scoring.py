@@ -275,3 +275,71 @@ def test_parser_edge_cases_from_review():
     assert edu == [{"degree": "Bachelor of Science", "institution": "Harvard University", "dates": ""}]
     # unrecognised wording still yields entries (line-per-entry fallback)
     assert _parse_education(["Some Programme, Some Place"])[0]["degree"] == "Some Programme"
+
+
+def _make_pdf(pages=1, with_image=False, header_contact=False):
+    import fitz
+
+    doc = fitz.open()
+    for i in range(pages):
+        page = doc.new_page()
+        page.insert_text((72, 120), "Jane Doe\nBuilt things with Python and SQL.")
+        if header_contact and i == 0:
+            page.insert_text((72, 20), "jane@example.com +1 415 555 0100")
+        if with_image and i == 0:
+            pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 20), False)
+            pix.clear_with(200)
+            page.insert_image(fitz.Rect(400, 80, 440, 120), pixmap=pix)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_pdf_layout_flags_images_pages_and_header_contact():
+    from parser import analyze_pdf_layout
+
+    clean = analyze_pdf_layout(_make_pdf())
+    assert clean["image_count"] == 0 and clean["page_count"] == 1
+    assert clean["contact_only_in_margin"] is False
+
+    bad = analyze_pdf_layout(_make_pdf(pages=3, with_image=True, header_contact=True))
+    assert bad["image_count"] == 1 and bad["page_count"] == 3
+    assert bad["contact_only_in_margin"] is True
+
+
+def test_pdf_checks_only_appear_when_flags_exist():
+    from scoring.formatting import check_formatting
+
+    resume = {"raw_text": "Jane Doe\nPython developer", "contact": {}}
+    names = {c["name"] for c in check_formatting(resume)}
+    assert "No images or graphics" not in names  # text-only input unchanged
+
+    flags = {"image_count": 2, "page_count": 3, "garbled_ratio": 0.0, "contact_only_in_margin": True}
+    checks = {c["name"]: c for c in check_formatting(resume, flags)}
+    assert not checks["No images or graphics"]["passed"]
+    assert not checks["Page length (1–2 pages)"]["passed"]
+    assert checks["Readable text layer"]["passed"]
+    assert not checks["Contact info in page body"]["passed"]
+
+
+def test_job_title_match_is_advisory_and_does_not_change_score():
+    from scoring.deterministic import score_deterministic
+
+    resume = {"raw_text": "Jane Doe\nData Scientist\n" + "word " * 200, "contact": {"email": "a@b.co"},
+              "sections_found": ["experience", "education", "skills"], "skills": ["Python"] * 6}
+    base = score_deterministic(resume, None)["score"]
+    with_jd = score_deterministic(resume, {"title": "Data Scientist"})
+    assert with_jd["score"] == base
+    chk = next(c for c in with_jd["checks"] if c["name"] == "Job title match")
+    assert chk["passed"] and chk["weight"] == 0
+    miss = score_deterministic(resume, {"title": "Quantum Chef"})
+    assert miss["score"] == base
+    assert not next(c for c in miss["checks"] if c["name"] == "Job title match")["passed"]
+
+
+def test_mixed_bullet_styles_flagged_but_unscored():
+    from scoring.formatting import check_formatting
+
+    resume = {"raw_text": "• one\n- two\n* three", "contact": {}}
+    chk = next(c for c in check_formatting(resume) if c["name"] == "Consistent bullet style")
+    assert not chk["passed"] and chk["weight"] == 0

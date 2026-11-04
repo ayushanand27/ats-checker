@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -10,6 +10,7 @@ from api.analysis import run_analysis
 from api.deps import VALID_TEMPLATES
 from api.schemas import AnalyzeResponse, AnalyzeStructuredRequest, TemplateChoice
 from parser import (
+    analyze_pdf_layout,
     detect_multi_column_pdf,
     docx_has_tables,
     extract_text,
@@ -95,9 +96,10 @@ async def analyze(
     pdf_bytes = resume_bytes if resume.filename.lower().endswith(".pdf") else None
     resume_struct = structure_resume(resume_raw, pdf_bytes=pdf_bytes)
 
-    parse_flags: dict[str, bool] = {}
+    parse_flags: dict[str, Any] = {}
     if pdf_bytes:
         parse_flags["multi_column_layout"] = detect_multi_column_pdf(pdf_bytes)
+        parse_flags.update(analyze_pdf_layout(pdf_bytes))
     if resume.filename.lower().endswith(".docx"):
         parse_flags["docx_tables"] = docx_has_tables(resume_bytes)
     resume_struct["parse_flags"] = parse_flags

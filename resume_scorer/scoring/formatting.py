@@ -185,4 +185,71 @@ def check_formatting(
             5,
         ))
 
+    checks.extend(_extra_checks(flags, raw))
     return checks
+
+
+# Checks added after reading Resume Matcher (srbhr, Apache-2.0) and ATS Screener
+# (sunnypatell, MIT), which parse-check the file and not only its text. The
+# logic below is our own. PDF-only checks run only when the PDF flags exist, so
+# text-only evaluation inputs (and the published numbers) are unaffected.
+_BULLET_STYLE_RE = re.compile(r"^\s*([•\-\*●▪▸►]|\d+[.)])")
+
+
+def _extra_checks(flags: dict[str, Any], raw: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+
+    if "image_count" in flags:
+        n = int(flags["image_count"] or 0)
+        out.append(_fmt_check(
+            "No images or graphics",
+            n == 0,
+            f"{n} image(s) found — ATS cannot read text inside images; photos and logos add nothing"
+            if n else "No embedded images",
+            5,
+        ))
+
+    if "page_count" in flags:
+        pages = int(flags["page_count"] or 0)
+        out.append(_fmt_check(
+            "Page length (1–2 pages)",
+            pages <= 2,
+            f"{pages} pages — most ATS and recruiters prefer 1–2; later pages may be skipped"
+            if pages > 2 else f"{pages} page(s)",
+            5,
+        ))
+
+    if "garbled_ratio" in flags:
+        ratio = float(flags["garbled_ratio"] or 0.0)
+        out.append(_fmt_check(
+            "Readable text layer",
+            ratio < 0.01,
+            f"{ratio:.1%} unreadable glyphs — custom fonts or icons may not extract as text"
+            if ratio >= 0.01 else "Text extracts cleanly",
+            5,
+        ))
+
+    if flags.get("contact_only_in_margin"):
+        out.append(_fmt_check(
+            "Contact info in page body",
+            False,
+            "Email/phone appear only in the page header or footer — many parsers skip those areas",
+            5,
+        ))
+
+    # Advisory (weight 0): shown to the user, not scored, because no weight for
+    # it has been validated on labelled data.
+    styles = set()
+    for line in raw.splitlines():
+        m = _BULLET_STYLE_RE.match(line)
+        if m:
+            tok = m.group(1)
+            styles.add("num" if tok[0].isdigit() else tok)
+    out.append(_fmt_check(
+        "Consistent bullet style",
+        len(styles) <= 1,
+        f"{len(styles)} different bullet styles — use one"
+        if len(styles) > 1 else "Bullet style is consistent",
+        0,
+    ))
+    return out
