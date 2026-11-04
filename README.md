@@ -426,7 +426,7 @@ Verify the Langfuse connection separately with `python scripts/langfuse_smoke.py
 - **FastAPI** + **Python 3.10–3.13**
 - **PyMuPDF** / **python-docx** / optional **pytesseract** (input parsing)
 - **sentence-transformers** (`all-MiniLM-L6-v2` for skills, `BAAI/bge-small-en-v1.5` for contextual fit) — local semantic matching
-- **Groq** (`llama-3.3-70b-versatile`) — optional chat + rewrite
+- **Groq** (default `llama-3.3-70b-versatile`, auto-falls back to `openai/gpt-oss-120b` etc.; override with `GROQ_MODEL`) — optional chat + rewrite
 - **Jinja2** + **WeasyPrint** (PDF) + **python-docx** (DOCX) + **LaTeX templates**
 
 ---

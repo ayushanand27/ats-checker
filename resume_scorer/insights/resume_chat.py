@@ -14,10 +14,10 @@ from insights.interview_quality import (
     quality_hints_for_llm,
 )
 from insights.resume_normalize import empty_resume_draft, normalize_resume_struct
+from insights.groq_models import chat_completion, preferred_model
 from insights.tracing import start_generation, usage_from_response
 from structurer import structure_jd
 
-GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """You are an expert resume coach conducting a THOROUGH, professional interview to build an industry-standard ATS resume (comparable to top intern/new-grad tech resumes).
 
@@ -215,7 +215,7 @@ def resume_chat_turn(
     for _attempt in range(2):
         gen = start_generation(
             name="resume_chat_turn",
-            model=GROQ_MODEL,
+            model=preferred_model(),
             input=groq_messages,
             metadata={"temperature": 0.35, "max_tokens": 4096, "attempt": _attempt + 1},
             user_id=trace_user_id,
@@ -223,8 +223,8 @@ def resume_chat_turn(
             tags=["chat"],
         )
         try:
-            response = client.chat.completions.create(
-                model=GROQ_MODEL,
+            response = chat_completion(
+                client,
                 messages=groq_messages,
                 response_format={"type": "json_object"},
                 temperature=0.35,

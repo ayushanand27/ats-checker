@@ -9,7 +9,7 @@ Usage:
 
     gen = start_generation(
         name="resume_rewrite",
-        model=GROQ_MODEL,
+        model=preferred_model(),
         input=messages,
         metadata={"temperature": 0.3},
         user_id="42",

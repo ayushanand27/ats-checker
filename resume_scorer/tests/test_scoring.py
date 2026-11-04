@@ -275,3 +275,49 @@ def test_parser_edge_cases_from_review():
     assert edu == [{"degree": "Bachelor of Science", "institution": "Harvard University", "dates": ""}]
     # unrecognised wording still yields entries (line-per-entry fallback)
     assert _parse_education(["Some Programme, Some Place"])[0]["degree"] == "Some Programme"
+
+
+def test_groq_falls_back_when_model_is_unavailable(monkeypatch):
+    from insights import groq_models
+
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.setattr(groq_models, "_working_model", None)
+    tried = []
+
+    class NotFound(Exception):
+        status_code = 404
+
+    class FakeCompletions:
+        def create(self, model, **kwargs):
+            tried.append(model)
+            if model == "llama-3.3-70b-versatile":
+                raise NotFound("model_not_found")
+            return {"model": model}
+
+    class FakeClient:
+        class chat:  # noqa: N801
+            completions = FakeCompletions()
+
+    out = groq_models.chat_completion(FakeClient(), messages=[])
+    assert out["model"] == "openai/gpt-oss-120b"
+    assert tried == ["llama-3.3-70b-versatile", "openai/gpt-oss-120b"]
+    # next call starts from the model that worked
+    assert groq_models.preferred_model() == "openai/gpt-oss-120b"
+    monkeypatch.setattr(groq_models, "_working_model", None)
+
+
+def test_groq_non_model_errors_are_not_swallowed(monkeypatch):
+    import pytest
+    from insights import groq_models
+
+    monkeypatch.setattr(groq_models, "_working_model", None)
+
+    class Boom:
+        class chat:  # noqa: N801
+            class completions:  # noqa: N801
+                @staticmethod
+                def create(model, **kwargs):
+                    raise ValueError("401 invalid api key")
+
+    with pytest.raises(ValueError):
+        groq_models.chat_completion(Boom(), messages=[])
