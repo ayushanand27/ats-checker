@@ -343,3 +343,30 @@ def test_mixed_bullet_styles_flagged_but_unscored():
     resume = {"raw_text": "• one\n- two\n* three", "contact": {}}
     chk = next(c for c in check_formatting(resume) if c["name"] == "Consistent bullet style")
     assert not chk["passed"] and chk["weight"] == 0
+
+
+def test_vendor_views_differ_by_matching_strategy_and_never_touch_core_score():
+    from scoring.vendor_views import compute_vendor_views
+
+    resume = "Managed pipelines and built dashboards. Worked with Postgres and ML models."
+    skills = ["managing", "Python", "machine learning"]
+    views = {v["vendor"]: v for v in compute_vendor_views(resume, skills, 40.0, [])}
+    inp = views["Taleo"]["inputs"]
+    assert inp["literal"] == 0.0            # 'managing' != 'Managed', no python, no ML expansion
+    assert inp["stemmed"] > inp["literal"]  # stemming finds Managed ~ managing
+    assert views["Greenhouse"]["score"] is None  # no auto-scoring by design
+    assert views["iCIMS"]["score"] > views["Taleo"]["score"]  # semantic more forgiving here
+    assert compute_vendor_views(resume, [], None, []) == []
+
+
+def test_analysis_response_includes_vendor_views():
+    from api.analysis import run_analysis
+    import os
+
+    os.environ["SKIP_LAYER2"] = "1"
+    os.environ["SKIP_CONTEXT"] = "1"
+    resume = {"name": "Jane", "contact": {"email": "j@x.co"}, "skills": ["Python", "SQL"],
+              "raw_text": "Jane\nPython SQL developer\n" + "built things " * 60,
+              "sections_found": ["experience", "education", "skills"]}
+    out = run_analysis(resume, "Data Engineer\nRequired: Python, SQL", "jacks_tech")
+    assert {v.vendor for v in out.vendor_views} >= {"Taleo", "iCIMS", "Greenhouse"}
