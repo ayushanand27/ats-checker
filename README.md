@@ -459,7 +459,7 @@ ResumeMatch stands on ideas from other open-source resume tools. We read their p
 
 | Project | License | What we learned from it | Where it shows up here |
 |---------|---------|--------------------------|------------------------|
-| [Resume Matcher](https://github.com/srbhr/Resume-Matcher) (srbhr) | Apache-2.0 | Parse-check the PDF file, not just its text (columns, images, header/footer text, page count); score the exact job title in the headline; deterministic, no-LLM scores; rule that tailoring must never invent facts | `parser.analyze_pdf_layout`, image / page-count / readable-text / contact-in-body checks, `Job title match` check, truthfulness rules in the rewriter |
+| [Resume Matcher](https://github.com/srbhr/Resume-Matcher) (srbhr) | Apache-2.0 | Parse-check the PDF file, not just its text (columns, images, header/footer text, page count); deterministic, no-LLM scores; rule that tailoring must never invent facts | `parser.analyze_pdf_layout`, image / page-count / readable-text / contact-in-body checks, truthfulness rules in the rewriter |
 | [ATS Screener](https://github.com/sunnypatell/ats-screener) (sunnypatell) | MIT | Different ATS vendors behave differently (literal match vs semantic vs none); formatting red flags such as images, tables, mixed bullets, page length | Formatting checks, `Consistent bullet style` advisory, `scoring/vendor_views.py` (illustrative Taleo / Workday / iCIMS / Lever / SuccessFactors / Greenhouse views) |
 | [ATS Buddy](https://github.com/seehiong/ats-buddy) (seehiong) | MIT | Keep the resume on the user's own machine; report gaps as technical vs soft | Local-first design note, privacy stance |
 
@@ -467,7 +467,7 @@ Research and baselines we compare against: TF-IDF, BM25 (Robertson and Zaragoza)
 
 **Per-vendor views.** `vendor_views` in the API response shows how literal, stemmed and semantic matching would score the same resume. These are rough illustrations from public descriptions, not the vendors' real algorithms, and never change the core score.
 
-**Advisory vs scored.** Checks taken from these projects that we could not validate on our labelled data (job-title match, bullet-style consistency) are shown to the user with weight 0, so they inform without changing the evaluated score.
+**Advisory vs scored.** Checks taken from these projects that we could not validate on our labelled data (bullet-style consistency) are shown to the user with weight 0, so they inform without changing the evaluated score.
 
 ---
 
