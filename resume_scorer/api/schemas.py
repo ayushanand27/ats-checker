@@ -95,6 +95,14 @@ class KeywordAnalysis(BaseModel):
     stuffing_warnings: list[str] = Field(default_factory=list)
 
 
+class VendorView(BaseModel):
+    vendor: str
+    strategy: str
+    score: Optional[float] = None
+    note: str = ""
+    inputs: dict[str, float] = Field(default_factory=dict)
+
+
 class AnalyzeResponse(BaseModel):
     core_score: float
     jd_provided: bool
@@ -107,6 +115,7 @@ class AnalyzeResponse(BaseModel):
     gaps: ScoreGaps
     top_fixes: list[TopFix] = Field(default_factory=list)
     score_band: str = ""
+    vendor_views: list[VendorView] = Field(default_factory=list)
     keyword_analysis: Optional[KeywordAnalysis] = None
     contextual: Optional[ContextualResult] = None
     score_breakdown: Optional[ScoreBreakdown] = None

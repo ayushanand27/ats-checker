@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from parser import alphanumeric_ratio
@@ -43,6 +44,43 @@ def _graded(
         "weight": weight,
         "score": round(weight * fraction, 2),
     }
+
+
+_TITLE_STOP = frozenset({"a", "an", "and", "the", "of", "for", "in", "to", "at", "&"})
+
+
+def _title_tokens(text: str) -> set[str]:
+    return {t for t in re.findall(r"[^\W_]+", text.lower()) if t not in _TITLE_STOP}
+
+
+def _title_match_check(resume: dict[str, Any], jd: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Does the posting's job title appear literally? Recruiters filter on it.
+
+    Idea from Resume Matcher (srbhr, Apache-2.0): exact title near the top
+    is the strongest signal, in the summary weaker, word overlap a near miss.
+    Advisory (weight 0): not validated against labelled data, so it informs the
+    user without changing the evaluated score.
+    """
+    title = ((jd or {}).get("title") or "").strip()
+    if not title:
+        return None
+    raw_lines = [ln.strip() for ln in (resume.get("raw_text") or "").splitlines() if ln.strip()]
+    headline = " ".join(raw_lines[:6]).lower()
+    summary = str(resume.get("summary") or "").lower()
+    pattern = r"(?<!\w)" + re.escape(title.lower()) + r"(?!\w)"
+    if re.search(pattern, headline):
+        return _check("Job title match", True, f"'{title}' appears in your headline", 0)
+    if re.search(pattern, summary):
+        return _check("Job title match", True, f"'{title}' appears in your summary — move it to the headline for recruiter title searches", 0)
+    want = _title_tokens(title)
+    have = _title_tokens(headline + " " + summary)
+    overlap = len(want & have) / len(want) if want else 0.0
+    return _check(
+        "Job title match",
+        False,
+        f"'{title}' not found ({overlap:.0%} word overlap) — recruiters search ATS by exact job title",
+        0,
+    )
 
 
 def score_deterministic(
@@ -154,6 +192,10 @@ def score_deterministic(
         f"{skills_count} skills detected" if skills_ok else f"Only {skills_count} skills detected — add more relevant keywords",
         15,
     ))
+
+    title_check = _title_match_check(resume, jd)
+    if title_check:
+        checks.append(title_check)
 
     formatting_checks = check_formatting(resume)
     hygiene_checks = checks

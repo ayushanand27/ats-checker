@@ -385,3 +385,97 @@ def test_groq_working_model_beats_unavailable_override_and_resets_on_change(monk
 
     monkeypatch.setenv("GROQ_MODEL", "other/model")  # override changed: start over
     assert groq_models.model_candidates()[0] == "other/model"
+
+def _make_pdf(pages=1, with_image=False, header_contact=False):
+    import fitz
+
+    doc = fitz.open()
+    for i in range(pages):
+        page = doc.new_page()
+        page.insert_text((72, 120), "Jane Doe\nBuilt things with Python and SQL.")
+        if header_contact and i == 0:
+            page.insert_text((72, 20), "jane@example.com +1 415 555 0100")
+        if with_image and i == 0:
+            pix = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 20, 20), False)
+            pix.clear_with(200)
+            page.insert_image(fitz.Rect(400, 80, 440, 120), pixmap=pix)
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+def test_pdf_layout_flags_images_pages_and_header_contact():
+    from parser import analyze_pdf_layout
+
+    clean = analyze_pdf_layout(_make_pdf())
+    assert clean["image_count"] == 0 and clean["page_count"] == 1
+    assert clean["contact_only_in_margin"] is False
+
+    bad = analyze_pdf_layout(_make_pdf(pages=3, with_image=True, header_contact=True))
+    assert bad["image_count"] == 1 and bad["page_count"] == 3
+    assert bad["contact_only_in_margin"] is True
+
+
+def test_pdf_checks_only_appear_when_flags_exist():
+    from scoring.formatting import check_formatting
+
+    resume = {"raw_text": "Jane Doe\nPython developer", "contact": {}}
+    names = {c["name"] for c in check_formatting(resume)}
+    assert "No images or graphics" not in names  # text-only input unchanged
+
+    flags = {"image_count": 2, "page_count": 3, "garbled_ratio": 0.0, "contact_only_in_margin": True}
+    checks = {c["name"]: c for c in check_formatting(resume, flags)}
+    assert not checks["No images or graphics"]["passed"]
+    assert not checks["Page length (1–2 pages)"]["passed"]
+    assert checks["Readable text layer"]["passed"]
+    assert not checks["Contact info in page body"]["passed"]
+
+
+def test_job_title_match_is_advisory_and_does_not_change_score():
+    from scoring.deterministic import score_deterministic
+
+    resume = {"raw_text": "Jane Doe\nData Scientist\n" + "word " * 200, "contact": {"email": "a@b.co"},
+              "sections_found": ["experience", "education", "skills"], "skills": ["Python"] * 6}
+    base = score_deterministic(resume, None)["score"]
+    with_jd = score_deterministic(resume, {"title": "Data Scientist"})
+    assert with_jd["score"] == base
+    chk = next(c for c in with_jd["checks"] if c["name"] == "Job title match")
+    assert chk["passed"] and chk["weight"] == 0
+    miss = score_deterministic(resume, {"title": "Quantum Chef"})
+    assert miss["score"] == base
+    assert not next(c for c in miss["checks"] if c["name"] == "Job title match")["passed"]
+
+
+def test_mixed_bullet_styles_flagged_but_unscored():
+    from scoring.formatting import check_formatting
+
+    resume = {"raw_text": "• one\n- two\n* three", "contact": {}}
+    chk = next(c for c in check_formatting(resume) if c["name"] == "Consistent bullet style")
+    assert not chk["passed"] and chk["weight"] == 0
+
+
+def test_vendor_views_differ_by_matching_strategy_and_never_touch_core_score():
+    from scoring.vendor_views import compute_vendor_views
+
+    resume = "Managed pipelines and built dashboards. Worked with Postgres and ML models."
+    skills = ["managing", "Python", "machine learning"]
+    views = {v["vendor"]: v for v in compute_vendor_views(resume, skills, 40.0, [])}
+    inp = views["Taleo"]["inputs"]
+    assert inp["literal"] == 0.0            # 'managing' != 'Managed', no python, no ML expansion
+    assert inp["stemmed"] > inp["literal"]  # stemming finds Managed ~ managing
+    assert views["Greenhouse"]["score"] is None  # no auto-scoring by design
+    assert views["iCIMS"]["score"] > views["Taleo"]["score"]  # semantic more forgiving here
+    assert compute_vendor_views(resume, [], None, []) == []
+
+
+def test_analysis_response_includes_vendor_views():
+    from api.analysis import run_analysis
+    import os
+
+    os.environ["SKIP_LAYER2"] = "1"
+    os.environ["SKIP_CONTEXT"] = "1"
+    resume = {"name": "Jane", "contact": {"email": "j@x.co"}, "skills": ["Python", "SQL"],
+              "raw_text": "Jane\nPython SQL developer\n" + "built things " * 60,
+              "sections_found": ["experience", "education", "skills"]}
+    out = run_analysis(resume, "Data Engineer\nRequired: Python, SQL", "jacks_tech")
+    assert {v.vendor for v in out.vendor_views} >= {"Taleo", "iCIMS", "Greenhouse"}
